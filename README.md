@@ -1,2 +1,2 @@
 # Emerald-Pixi
-A simple game-development framework for Pixi.js.
+A very basic game dev. framework build on top of PixiJS 
