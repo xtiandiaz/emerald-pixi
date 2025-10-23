@@ -1,9 +1,5 @@
 {
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
-  },
+  "scripts": {},
   "dependencies": {
     "pixi.js": "^8.14.0"
   },
