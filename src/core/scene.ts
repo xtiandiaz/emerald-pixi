@@ -5,13 +5,15 @@ import { Component } from './component'
 export abstract class Scene<Options extends object> {
   readonly options: Options
 
-  _app = new Application()
+  _app: Application
   _entities = {} as Record<string, Component>
 
   _hasStarted = false
 
   constructor(options: Options) {
     this.options = options
+
+    this._app = new Application()
   }
 
   get screen(): Rectangle {
@@ -30,6 +32,8 @@ export abstract class Scene<Options extends object> {
     })
 
     document.body.appendChild(this._app.canvas)
+
+    this._app.renderer.addListener('resize', () => this.onResize?.())
   }
 
   start(): void {
@@ -54,7 +58,9 @@ export abstract class Scene<Options extends object> {
 
   update(deltaTime: number): void {
     Object.values(this._entities).forEach((c: Component) => {
-      c.update(deltaTime)
+      c.update?.(deltaTime)
     })
   }
+
+  onResize?(): void
 }
