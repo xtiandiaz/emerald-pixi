@@ -1,11 +1,11 @@
-import { Container } from 'pixi.js'
+import { Container, type ContainerChild } from 'pixi.js'
 
-export class Component {
-  readonly container = new Container()
+export class Component extends Container<ContainerChild> {
   id?: string
 
-  async init?(): Promise<void>
+  init?(): void
   start?(): void
   update?(deltaTime: number): void
-  onDestroy?(): void
+
+  async onDestroy?(): Promise<void>
 }

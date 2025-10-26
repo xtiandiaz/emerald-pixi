@@ -1,9 +1,11 @@
 import { Application, Container, Rectangle } from 'pixi.js'
 import type { ApplicationOptions, ContainerChild } from 'pixi.js'
 import { Component } from './component'
+import { Tweener } from './tweener'
 
 export abstract class Scene<Options extends object> {
   readonly options: Options
+  readonly tweener: Tweener
 
   _app: Application
   _entities = {} as Record<string, Component>
@@ -12,6 +14,7 @@ export abstract class Scene<Options extends object> {
 
   constructor(options: Options) {
     this.options = options
+    this.tweener = new Tweener()
 
     this._app = new Application()
   }
@@ -48,18 +51,30 @@ export abstract class Scene<Options extends object> {
     this._hasStarted = true
   }
 
+  update(deltaTime: number): void {
+    this.tweener.update()
+
+    Object.values(this._entities).forEach((c: Component) => {
+      c.update?.(deltaTime)
+    })
+  }
+
   add(component: Component): string {
     const id = Symbol().toString()
     component.id = id
     this._entities[id] = component
-    this.stage.addChild(component.container)
+    this.stage.addChild(component)
     return id
   }
 
-  update(deltaTime: number): void {
-    Object.values(this._entities).forEach((c: Component) => {
-      c.update?.(deltaTime)
-    })
+  async destroy(id: string): Promise<boolean> {
+    const entity = this._entities[id]
+    if (entity) {
+      await entity.onDestroy?.()
+      this.stage.removeChild(entity)
+      delete this._entities[id]
+    }
+    return entity != undefined
   }
 
   onResize?(): void
