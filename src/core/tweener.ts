@@ -1,5 +1,6 @@
 import { lerp } from './utils'
 import type { Component } from './component'
+import { Ticker } from 'pixi.js'
 
 export interface Tween {
   target: Component
@@ -21,13 +22,23 @@ export class Ease {
     return (t: number) => --t * t * ((amount + 1) * t + amount) + 1
   }
 
-  static Linear = () => {
-    return (t: number) => t
-  }
+  static Linear = (t: number) => t
 }
 
 export class Tweener {
-  tweening: Tween[] = []
+  private static _shared?: Tweener
+  private tweening: Tween[] = []
+
+  private constructor() {}
+
+  static get shared(): Tweener {
+    if (this._shared == undefined) {
+      this._shared = new Tweener()
+      Ticker.shared.add(() => this._shared!.update())
+    }
+
+    return this._shared
+  }
 
   async tween<T extends Component>(
     target: T,

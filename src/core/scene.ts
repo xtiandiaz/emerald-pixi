@@ -1,11 +1,9 @@
 import { Application, Container, Rectangle } from 'pixi.js'
 import type { ApplicationOptions, ContainerChild } from 'pixi.js'
 import { Component } from './component'
-import { Tweener } from './tweener'
 
 export abstract class Scene<Options extends object> {
   readonly options: Options
-  readonly tweener: Tweener
 
   _app: Application
   _entities = {} as Record<string, Component>
@@ -14,7 +12,6 @@ export abstract class Scene<Options extends object> {
 
   constructor(options: Options) {
     this.options = options
-    this.tweener = new Tweener()
 
     this._app = new Application()
   }
@@ -52,8 +49,6 @@ export abstract class Scene<Options extends object> {
   }
 
   update(deltaTime: number): void {
-    this.tweener.update()
-
     Object.values(this._entities).forEach((c: Component) => {
       c.update?.(deltaTime)
     })
