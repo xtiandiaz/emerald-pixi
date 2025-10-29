@@ -1,18 +1,15 @@
-import { Application, Container, Rectangle } from 'pixi.js'
-import type { ApplicationOptions, ContainerChild } from 'pixi.js'
+import { Application, Rectangle } from 'pixi.js'
+import type { ApplicationOptions, Container, ContainerChild } from 'pixi.js'
 import { Component } from './component'
 
-export abstract class Scene<Options extends object> {
-  readonly options: Options
+export class Scene {
+  isPaused = false
 
-  _app: Application
-  _entities = {} as Record<string, Component>
+  private _app: Application
+  private _entities = {} as Record<string, Component>
+  private _isStarted = false
 
-  _hasStarted = false
-
-  constructor(options: Options) {
-    this.options = options
-
+  constructor() {
     this._app = new Application()
   }
 
@@ -24,53 +21,73 @@ export abstract class Scene<Options extends object> {
     return this._app.stage
   }
 
-  async init(options: Partial<ApplicationOptions>) {
-    await this._app.init({
-      ...options,
-      antialias: true,
-      resizeTo: window,
-    })
-
-    document.body.appendChild(this._app.canvas)
-
-    this._app.renderer.addListener('resize', () => this.onResize?.())
+  async init(options?: Partial<ApplicationOptions>): Promise<void> {
+    await this._app.init(options)
   }
 
   start(): void {
-    if (this._hasStarted) {
+    if (this._isStarted) {
       return
     }
 
-    this._app.ticker.add((time) => {
-      this.update(time.deltaTime)
+    this._isStarted = true
+
+    this.draw?.()
+
+    Object.values(this._entities).forEach((c: Component) => {
+      c.start?.()
     })
 
-    this._hasStarted = true
+    this._app.ticker.add((ticker) => {
+      this.update(ticker.deltaTime)
+    })
+
+    this._app.renderer.addListener('resize', () => {
+      this.onResize?.()
+    })
+
+    this.onResize?.()
   }
 
+  draw?(): void
+
   update(deltaTime: number): void {
+    if (!this._isStarted || this.isPaused) {
+      return
+    }
+
     Object.values(this._entities).forEach((c: Component) => {
+      if (!c.isStarted) {
+        c.start()
+      }
       c.update?.(deltaTime)
     })
   }
 
-  add(component: Component): string {
-    const id = Symbol().toString()
-    component.id = id
-    this._entities[id] = component
-    this.stage.addChild(component)
-    return id
+  addEntity(component: Component) {
+    this._entities[component.id] = component
+    this._app.stage.addChild(component)
   }
 
-  async destroy(id: string): Promise<boolean> {
+  removeEntity(id: string) {
+    const entity = this._entities[id]
+    if (entity) {
+      this._removeEntity(entity)
+    }
+  }
+
+  async destroyEntity(id: string): Promise<void> {
     const entity = this._entities[id]
     if (entity) {
       await entity.onDestroy?.()
-      this.stage.removeChild(entity)
-      delete this._entities[id]
+      this._removeEntity(entity)
     }
-    return entity != undefined
   }
 
   onResize?(): void
+
+  private _removeEntity(entity: Component) {
+    this._app.stage.removeChild(entity)
+    delete this._entities[entity.id]
+  }
 }
