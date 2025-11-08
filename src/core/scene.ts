@@ -22,7 +22,10 @@ export class Scene {
   }
 
   async init(options?: Partial<ApplicationOptions>): Promise<void> {
-    await this._app.init(options)
+    await this._app.init({
+      antialias: true,
+      ...options,
+    })
   }
 
   start(): void {
@@ -32,7 +35,7 @@ export class Scene {
 
     this._isStarted = true
 
-    this.draw?.()
+    this.draw()
 
     Object.values(this._entities).forEach((c: Component) => {
       c.start?.()
@@ -49,7 +52,9 @@ export class Scene {
     this.onResize?.()
   }
 
-  draw?(): void
+  draw(): void {
+    Object.values(this._entities).forEach((e) => e.draw?.(this.screen))
+  }
 
   update(deltaTime: number): void {
     if (!this._isStarted || this.isPaused) {
@@ -67,6 +72,10 @@ export class Scene {
   addEntity(component: Component) {
     this._entities[component.id] = component
     this._app.stage.addChild(component)
+
+    if (!component.isInit) {
+      component.init()
+    }
   }
 
   removeEntity(id: string) {
