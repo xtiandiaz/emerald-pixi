@@ -1,99 +1,36 @@
-import { lerp } from './utils'
-import type { Component } from './component'
-import { Ticker } from 'pixi.js'
+import * as PIXI from 'pixi.js'
+import gsap from 'gsap'
+import PixiPlugin from 'gsap/PixiPlugin'
 
-export interface Tween {
-  target: Component
-  destination: any
-  startValue: any
-  duration: number
-  startTime: number
-  ease: (t: number) => number
-
-  setValue: (v: any) => void
-  onUpdate?: (t: number) => void
-  onCompleted?: () => void
-}
-
-export class Ease {
-  private constructor() {}
-
-  static BackOut = (amount: number) => {
-    return (t: number) => --t * t * ((amount + 1) * t + amount) + 1
-  }
-
-  static Linear = (t: number) => t
-}
+export type Ease = gsap.EaseString | gsap.EaseFunction
 
 export class Tweener {
-  private static _shared?: Tweener
-  private tweening: Tween[] = []
+  private static _main?: Tweener
 
-  private constructor() {}
-
-  static get shared(): Tweener {
-    if (this._shared == undefined) {
-      this._shared = new Tweener()
-      Ticker.shared.add(() => this._shared!.update())
-    }
-
-    return this._shared
+  private constructor() {
+    gsap.registerPlugin(PixiPlugin)
+    PixiPlugin.registerPIXI(PIXI)
   }
 
-  async tween<T extends Component>(
-    target: T,
-    property: string,
-    destination: any,
-    duration: number,
-    easing: (t: number) => number,
-    onUpdate?: (t: number) => void,
-  ) {
-    const propKey = property as keyof typeof target
-
-    const tw: Tween = {
-      target,
-      destination,
-      duration: duration * 1000,
-      ease: easing,
-      startValue: target[propKey],
-      startTime: Date.now(),
-
-      setValue: (v) => {
-        ;(target[propKey] as any) = v
-      },
-      onUpdate,
+  static get main(): Tweener {
+    if (this._main == undefined) {
+      this._main = new Tweener()
     }
 
-    this.tweening.push(tw)
+    return this._main
+  }
 
-    return new Promise<void>((resolve) => {
-      tw.onCompleted = () => {
-        resolve()
+  to(target: PIXI.Container, vars: PixiPlugin.Vars, ease: Ease, duration: number) {
+    return gsap.to(target, { pixi: vars, ease, duration })
+  }
+
+  async toAsync(target: PIXI.Container, vars: PixiPlugin.Vars, ease: Ease, duration: number) {
+    const tw = gsap.to(target, { pixi: vars, ease, duration })
+
+    return new Promise<gsap.core.Tween>((resolve) => {
+      tw.vars.onComplete = () => {
+        resolve(tw)
       }
     })
-  }
-
-  update() {
-    const now = Date.now()
-    const completedTweensIndices: number[] = []
-
-    for (let i = 0; i < this.tweening.length; i++) {
-      const tw = this.tweening[i]!
-      const t = Math.min(1, (now - tw.startTime) / tw.duration)
-      const value = lerp(tw.startValue, tw.destination, tw.ease(t))
-
-      tw.setValue(value)
-      tw.onUpdate?.(t)
-
-      if (t === 1) {
-        tw.setValue(tw.destination)
-        tw.onCompleted?.()
-        completedTweensIndices.push(i)
-      }
-    }
-
-    for (const index of completedTweensIndices) {
-      this.tweening.splice(index, 1)
-    }
   }
 }
