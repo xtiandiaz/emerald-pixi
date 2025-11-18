@@ -1,8 +1,12 @@
 import { Container, Rectangle, type ContainerChild } from 'pixi.js'
 
 export class Component extends Container<ContainerChild> {
-  private static nextId = 0
+  onInit?: (self: Component) => void
+  onStart?: (self: Component) => void
+  onDraw?: (self: Component, rect: Rectangle) => void
+  onUpdate?: (self: Component, deltaTime: number) => void
 
+  private static nextId = 0
   private readonly _id = Component.nextId++
   private _isInit = false
   private _isStarted = false
@@ -21,14 +25,23 @@ export class Component extends Container<ContainerChild> {
 
   init(): void {
     this._isInit = true
+
+    this.onInit?.(this)
   }
 
   start(): void {
     this._isStarted = true
+
+    this.onStart?.(this)
   }
 
-  draw?(rect: Rectangle): void
-  update?(deltaTime: number): void
+  draw(rect: Rectangle): void {
+    this.onDraw?.(this, rect)
+  }
+
+  update(deltaTime: number): void {
+    this.onUpdate?.(this, deltaTime)
+  }
 
   async onDestroy?(): Promise<void>
 }

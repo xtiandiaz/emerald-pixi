@@ -5,6 +5,12 @@ import { Component } from './component'
 export class Scene {
   isPaused = false
 
+  onInit?: (self: Scene) => void
+  onStart?: (self: Scene) => void
+  onDraw?: (self: Scene) => void
+  onUpdate?: (self: Scene, deltaTime: number) => void
+  onResize?: (self: Scene) => void
+
   private app!: Application
   private entities = {} as Record<string, Component>
   private isStarted = false
@@ -26,6 +32,8 @@ export class Scene {
       antialias: true,
       ...options,
     })
+
+    this.onInit?.(this)
   }
 
   start(): void {
@@ -45,14 +53,16 @@ export class Scene {
     })
 
     this.app.renderer.addListener('resize', () => {
-      this.onResize?.()
+      this.onResize?.(this)
     })
 
-    this.onResize?.()
+    this.onStart?.(this)
   }
 
   draw(): void {
     Object.values(this.entities).forEach((e) => e.draw?.(this.viewport))
+
+    this.onDraw?.(this)
   }
 
   update(deltaTime: number): void {
@@ -62,10 +72,13 @@ export class Scene {
 
     Object.values(this.entities).forEach((c: Component) => {
       if (!c.isStarted) {
+        c.draw(this.viewport)
         c.start()
       }
-      c.update?.(deltaTime)
+      c.update(deltaTime)
     })
+
+    this.onUpdate?.(this, deltaTime)
   }
 
   addEntity(component: Component) {
@@ -91,8 +104,6 @@ export class Scene {
       this._removeEntity(entity)
     }
   }
-
-  onResize?(): void
 
   private _removeEntity(entity: Component) {
     this.stage.removeChild(entity)
