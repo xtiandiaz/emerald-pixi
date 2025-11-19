@@ -1,6 +1,6 @@
 import type { ApplicationOptions } from 'pixi.js'
 import { Container, Rectangle, Application } from 'pixi.js'
-import { Component } from './component'
+import { Entity } from './entity'
 
 export class Scene {
   isPaused = false
@@ -12,7 +12,7 @@ export class Scene {
   onResize?: (self: Scene) => void
 
   private app!: Application
-  private entities = {} as Record<string, Component>
+  private entities = {} as Record<string, Entity>
   private isStarted = false
 
   constructor() {
@@ -44,7 +44,7 @@ export class Scene {
 
     this.draw()
 
-    Object.values(this.entities).forEach((c: Component) => {
+    Object.values(this.entities).forEach((c: Entity) => {
       c.start?.()
     })
 
@@ -70,42 +70,43 @@ export class Scene {
       return
     }
 
-    Object.values(this.entities).forEach((c: Component) => {
-      if (!c.isStarted) {
-        c.draw(this.viewport)
-        c.start()
-      }
-      c.update(deltaTime)
+    Object.values(this.entities).forEach((e) => {
+      e.update(deltaTime)
     })
 
     this.onUpdate?.(this, deltaTime)
   }
 
-  addEntity(component: Component) {
-    this.entities[component.id] = component
-    this.stage.addChild(component)
+  add(entity: Entity) {
+    this.entities[entity.id] = entity
+    this.stage.addChild(entity)
 
-    if (!component.isInit) {
-      component.init()
+    if (!entity.isInit) {
+      entity.init()
+    }
+
+    if (!entity.isStarted) {
+      entity.draw(this.viewport)
+      entity.start()
     }
   }
 
-  removeEntity(id: string) {
-    const entity = this.entities[id]
+  remove(entityId: string) {
+    const entity = this.entities[entityId]
     if (entity) {
-      this._removeEntity(entity)
+      this._remove(entity)
     }
   }
 
-  async destroyEntity(id: string): Promise<void> {
-    const entity = this.entities[id]
+  async destroy(entityId: string): Promise<void> {
+    const entity = this.entities[entityId]
     if (entity) {
-      await entity.onDestroy?.()
-      this._removeEntity(entity)
+      // await entity.onDestroy?.()
+      this._remove(entity)
     }
   }
 
-  private _removeEntity(entity: Component) {
+  private _remove(entity: Entity) {
     this.stage.removeChild(entity)
     delete this.entities[entity.id]
   }
