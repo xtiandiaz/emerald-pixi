@@ -9,22 +9,26 @@ export class Scene {
   onStart?: (self: Scene) => void
   onDraw?: (self: Scene) => void
   onUpdate?: (self: Scene, deltaTime: number) => void
-  onResize?: (self: Scene) => void
+  onResize?: (self: Scene, bounds: Rectangle) => void
 
   private app!: Application
-  private entities = {} as Record<string, Entity>
   private isStarted = false
+  private _entities = {} as Record<string, Entity>
 
   constructor() {
     this.app = new Application()
   }
 
-  get viewport(): Rectangle {
+  get bounds(): Rectangle {
     return this.app.screen
   }
 
   get stage(): Container {
     return this.app.stage
+  }
+
+  private get entities(): Entity[] {
+    return Object.values(this._entities)
   }
 
   async init(options?: Partial<ApplicationOptions>): Promise<void> {
@@ -44,8 +48,8 @@ export class Scene {
 
     this.draw()
 
-    Object.values(this.entities).forEach((c: Entity) => {
-      c.start?.()
+    this.entities.forEach((c: Entity) => {
+      c.__start()
     })
 
     this.app.ticker.add((ticker) => {
@@ -53,14 +57,14 @@ export class Scene {
     })
 
     this.app.renderer.addListener('resize', () => {
-      this.onResize?.(this)
+      this.resize(this.bounds)
     })
 
     this.onStart?.(this)
   }
 
   draw(): void {
-    Object.values(this.entities).forEach((e) => e.draw?.(this.viewport))
+    this.entities.forEach((e) => e.draw?.(this.bounds))
 
     this.onDraw?.(this)
   }
@@ -70,44 +74,43 @@ export class Scene {
       return
     }
 
-    Object.values(this.entities).forEach((e) => {
+    this.entities.forEach((e) => {
       e.update(deltaTime)
     })
 
     this.onUpdate?.(this, deltaTime)
   }
 
-  add(entity: Entity) {
-    this.entities[entity.id] = entity
+  resize(bounds: Rectangle): void {
+    this.onResize?.(this, bounds)
+
+    this.entities.forEach((e) => {
+      e.resize?.(bounds)
+    })
+  }
+
+  // --------------------------------
+  // ENTITIES
+  // --------------------------------
+
+  addEntity(entity: Entity) {
+    this._entities[entity.id] = entity
+
+    entity.__init()
+
     this.stage.addChild(entity)
 
-    if (!entity.isInit) {
-      entity.init()
-    }
-
-    if (!entity.isStarted) {
-      entity.draw(this.viewport)
-      entity.start()
+    if (this.isStarted) {
+      entity.draw(this.bounds)
+      entity.__start()
     }
   }
 
-  remove(entityId: string) {
-    const entity = this.entities[entityId]
+  removeEntity(entityId: string) {
+    const entity = this._entities[entityId]
     if (entity) {
-      this._remove(entity)
+      this.stage.removeChild(entity)
+      delete this._entities[entity.id]
     }
-  }
-
-  async destroy(entityId: string): Promise<void> {
-    const entity = this.entities[entityId]
-    if (entity) {
-      // await entity.onDestroy?.()
-      this._remove(entity)
-    }
-  }
-
-  private _remove(entity: Entity) {
-    this.stage.removeChild(entity)
-    delete this.entities[entity.id]
   }
 }
