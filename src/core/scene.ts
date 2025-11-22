@@ -2,14 +2,8 @@ import type { ApplicationOptions } from 'pixi.js'
 import { Container, Rectangle, Application } from 'pixi.js'
 import { Entity } from './entity'
 
-export class Scene {
+export abstract class Scene {
   isPaused = false
-
-  onInit?: (self: Scene) => void
-  onStart?: (self: Scene) => void
-  onDraw?: (self: Scene) => void
-  onUpdate?: (self: Scene, deltaTime: number) => void
-  onResize?: (self: Scene, bounds: Rectangle) => void
 
   private app!: Application
   private isStarted = false
@@ -36,8 +30,6 @@ export class Scene {
       antialias: true,
       ...options,
     })
-
-    this.onInit?.(this)
   }
 
   start(): void {
@@ -59,14 +51,10 @@ export class Scene {
     this.app.renderer.addListener('resize', () => {
       this.resize(this.bounds)
     })
-
-    this.onStart?.(this)
   }
 
   draw(): void {
     this.entities.forEach((e) => e.draw?.(this.bounds))
-
-    this.onDraw?.(this)
   }
 
   update(deltaTime: number): void {
@@ -77,13 +65,9 @@ export class Scene {
     this.entities.forEach((e) => {
       e.update(deltaTime)
     })
-
-    this.onUpdate?.(this, deltaTime)
   }
 
   resize(bounds: Rectangle): void {
-    this.onResize?.(this, bounds)
-
     this.entities.forEach((e) => {
       e.resize?.(bounds)
     })
