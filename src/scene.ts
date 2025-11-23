@@ -1,19 +1,24 @@
 import type { ApplicationOptions } from 'pixi.js'
 import { Container, Rectangle, Application } from 'pixi.js'
 import { Entity } from './entity'
+import { Engine, Composite, Bounds, World, Runner, Body } from 'matter-js'
 
 export abstract class Scene {
   isPaused = false
 
   private app!: Application
+  private engine!: Engine
+  // private runner: Runner
   private isStarted = false
   private _entities = {} as Record<string, Entity>
 
   constructor() {
     this.app = new Application()
+    this.engine = Engine.create()
+    // this.runner = Runner.create()
   }
 
-  get bounds(): Rectangle {
+  get viewport(): Rectangle {
     return this.app.screen
   }
 
@@ -49,12 +54,12 @@ export abstract class Scene {
     })
 
     this.app.renderer.addListener('resize', () => {
-      this.resize(this.bounds)
+      this.resize()
     })
   }
 
   draw(): void {
-    this.entities.forEach((e) => e.draw?.(this.bounds))
+    this.entities.forEach((e) => e.__draw(this.viewport))
   }
 
   update(deltaTime: number): void {
@@ -62,14 +67,16 @@ export abstract class Scene {
       return
     }
 
+    Engine.update(this.engine, (deltaTime * 1000) / 60)
+
     this.entities.forEach((e) => {
-      e.update(deltaTime)
+      e.__update(deltaTime)
     })
   }
 
-  resize(bounds: Rectangle): void {
+  resize(): void {
     this.entities.forEach((e) => {
-      e.resize?.(bounds)
+      e.resize?.(this.viewport)
     })
   }
 
@@ -80,12 +87,16 @@ export abstract class Scene {
   addEntity(entity: Entity) {
     this._entities[entity.id] = entity
 
-    entity.__init()
-
     this.stage.addChild(entity)
 
+    entity.__onBodyAdded = (body) => {
+      this.__addBody(body)
+    }
+
+    entity.init?.()
+
     if (this.isStarted) {
-      entity.draw(this.bounds)
+      entity.__draw(this.viewport)
       entity.__start()
     }
   }
@@ -96,5 +107,13 @@ export abstract class Scene {
       this.stage.removeChild(entity)
       delete this._entities[entity.id]
     }
+  }
+
+  // --------------------------------
+  // BODIES
+  // --------------------------------
+
+  __addBody(body: Body): void {
+    Composite.add(this.engine.world, body)
   }
 }

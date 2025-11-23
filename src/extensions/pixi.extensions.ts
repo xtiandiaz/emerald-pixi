@@ -1,14 +1,19 @@
-import { Rectangle, Point as Vector2, type PointData } from 'pixi.js'
+import { Point, Rectangle, type PointData } from 'pixi.js'
 import 'pixi.js/math-extras'
 
 declare module 'pixi.js' {
   interface Rectangle {
-    size(): Vector2
+    size(): Point
+    center(): Point
   }
 }
 
-Rectangle.prototype.size = function (this): Vector2 {
-  return new Vector2(this.width, this.height)
+Rectangle.prototype.size = function (this): Point {
+  return new Point(this.width, this.height)
+}
+
+Rectangle.prototype.center = function (this): Point {
+  return new Point(this.x + this.width / 2, this.y + this.height / 2)
 }
 
 declare global {
@@ -18,9 +23,9 @@ declare global {
   }
 }
 
-Vector2.prototype.divide = function <T extends PointData>(this, other: T, outVector?: T): T {
+Point.prototype.divide = function <T extends PointData>(this, other: T, outVector?: T): T {
   if (!outVector) {
-    outVector = new Vector2() as PointData as T
+    outVector = new Point() as PointData as T
   }
   outVector.x = this.x / other.x
   outVector.y = this.y / other.y
@@ -28,13 +33,13 @@ Vector2.prototype.divide = function <T extends PointData>(this, other: T, outVec
   return outVector
 }
 
-Vector2.prototype.divideScalar = function <T extends PointData>(
+Point.prototype.divideScalar = function <T extends PointData>(
   this,
   scalar: number,
   outVector?: T,
 ): T {
   if (!outVector) {
-    outVector = new Vector2() as PointData as T
+    outVector = new Point() as PointData as T
   }
   outVector.x = this.x / scalar
   outVector.y = this.y / scalar
