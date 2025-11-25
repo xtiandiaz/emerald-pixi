@@ -1,6 +1,6 @@
 import type { ApplicationOptions } from 'pixi.js'
 import { Container, Rectangle, Application } from 'pixi.js'
-import { Entity } from './entity'
+import { Entity } from './core/Entity'
 import { Engine, Composite, Bounds, World, Runner, Body } from 'matter-js'
 
 export abstract class Scene {

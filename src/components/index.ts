@@ -1,3 +1,5 @@
-import Component from './Component'
+import GraphicsComponent from './GraphicsComponent'
+import PhysicsComponent from './PhysicsComponent'
+import BodyComponent from './BodyComponent'
 
-export { Component }
+export { GraphicsComponent, PhysicsComponent, BodyComponent }
