@@ -6,12 +6,16 @@ export default class Entity {
   private static nextId = 0
   private components = {} as Record<string, object>
 
-  constructor() {
+  private constructor() {
     this.id = Entity.nextId++
   }
 
-  addComponent<T extends Component>(type: new () => T): T {
-    const component = new type()
+  static create(): Entity {
+    return new Entity()
+  }
+
+  addComponent<T extends Component>(type: new (...params: any) => T, ...params: any): T {
+    const component = new type(...params)
     this.components[type.name] = component
 
     return component

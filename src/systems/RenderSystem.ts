@@ -1,10 +1,14 @@
 import { Entity, type System } from '../core'
 import { PhysicsComponent, GraphicsComponent } from '../components'
-import { Application, type ApplicationOptions } from 'pixi.js'
+import type { Container, Renderer } from 'pixi.js'
 
-export default class RenderSystem extends Application implements System {
-  async init(options?: Partial<ApplicationOptions>): Promise<void> {
-    await super.init(options)
+export default class RenderSystem implements System {
+  private renderer: Renderer
+  private stage: Container
+
+  constructor(renderer: Renderer, stage: Container) {
+    this.renderer = renderer
+    this.stage = stage
   }
 
   update(entities: Entity[]): void {

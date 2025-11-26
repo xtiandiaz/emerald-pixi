@@ -1,4 +1,3 @@
-// import GameApp from './GameApp'
 import Scene from './Scene'
 import Entity from './Entity'
 import Screen from './Screen'
