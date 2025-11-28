@@ -1,4 +1,5 @@
-import GraphicsComponent from './GraphicsComponent'
+import ScreenComponent from './ScreenComponent'
 import PhysicsComponent from './PhysicsComponent'
+import CollisionComponent from './CollisionComponent'
 
-export { GraphicsComponent, PhysicsComponent }
+export { ScreenComponent, PhysicsComponent, CollisionComponent }

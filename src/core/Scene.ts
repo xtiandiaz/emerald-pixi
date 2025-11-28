@@ -1,56 +1,67 @@
-import { Application, Rectangle, type ApplicationOptions } from 'pixi.js'
+import { type ApplicationOptions, Container, Ticker } from 'pixi.js'
 import { Entity, type System } from './'
 import { PhysicsSystem, RenderSystem } from '../systems'
-import type { GameState } from '../state/GameState'
+import { PhysicsComponent } from '../components'
 
-export default class Scene extends Application {
-  private static _bounds = new Rectangle()
+export interface SceneState {
+  isPaused: boolean
+}
+
+export default class Scene {
+  state?: SceneState
+
+  private stage = new Container()
   private entities = {} as Record<number, Entity>
   private systems: System[] = []
-  private state: GameState
+  private physicsSystem: PhysicsSystem
 
-  constructor(state: GameState) {
-    super()
-
-    this.state = state
-  }
-
-  static get bounds(): Rectangle {
-    return Scene._bounds
+  constructor() {
+    this.physicsSystem = new PhysicsSystem((id: number) => {
+      return this.entities[id]
+    })
+    this.systems = [this.physicsSystem]
   }
 
   async init(options: Partial<ApplicationOptions>): Promise<void> {
-    await super.init(options)
+    this.physicsSystem.init()
 
-    this.systems.push(new PhysicsSystem(), new RenderSystem(this.renderer, this.stage))
+    const rs = new RenderSystem(this.stage)
+    await rs.init(options)
+    this.systems.push(rs)
 
-    this.ticker.add(() => {
-      this.update()
+    Ticker.shared.add((t) => {
+      this.update(t.deltaTime)
     })
-
-    this.renderer.on('resize', () => {
-      this.onResize()
-    })
-    this.onResize()
-  }
-
-  update() {
-    if (this.state.isPaused) {
-      return
-    }
-    const es = Object.values(this.entities)
-    this.systems.forEach((s) => s.update(es))
   }
 
   addEntity(entity: Entity) {
     this.entities[entity.id] = entity
+
+    const pc = entity.getComponent(PhysicsComponent)
+    if (pc) {
+      this.physicsSystem.registerBody(pc.body, entity)
+    }
+
+    this.stage.addChild(entity)
   }
 
   removeEntity(entityId: number) {
+    const e = this.entities[entityId]
+    if (e) {
+      this.stage.removeChild(e)
+    }
+
     delete this.entities[entityId]
   }
 
-  private onResize() {
-    Scene._bounds = new Rectangle(0, 0, this.screen.width, this.screen.height)
+  private update(deltaTime: number) {
+    if (this.state?.isPaused) {
+      return
+    }
+
+    const es = Object.values(this.entities)
+
+    this.systems.forEach((s) => s.update(es))
+    es.forEach((s) => s._update(deltaTime))
   }
 }
