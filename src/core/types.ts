@@ -1,7 +1,7 @@
-import { Entity } from './'
+import type { ApplicationOptions } from 'pixi.js'
+import Component from './Component'
 
-export type Component = object
+export type AnyComponent<T extends Component> = new (...params: any) => T
 
-export interface System {
-  update(entities: Entity[]): void
-}
+export type GameAppOptions = Partial<ApplicationOptions>
+export type RenderOptions = Partial<ApplicationOptions>

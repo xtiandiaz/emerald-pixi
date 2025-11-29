@@ -1,67 +1,28 @@
-import { type ApplicationOptions, Container, Ticker } from 'pixi.js'
 import { Entity, type System } from './'
-import { PhysicsSystem, RenderSystem } from '../systems'
-import { PhysicsComponent } from '../components'
+import { InputSystem } from '../systems'
+import { Container } from 'pixi.js'
 
-export interface SceneState {
-  isPaused: boolean
-}
+export default abstract class Scene extends Container {
+  readonly name: string
+  readonly addedEntities: Entity[] = []
+  readonly removedEntities: number[] = [] // TODO: handle if any, and clear
+  readonly systems: System[] = []
 
-export default class Scene {
-  state?: SceneState
+  constructor(name: string) {
+    super()
 
-  private stage = new Container()
-  private entities = {} as Record<number, Entity>
-  private systems: System[] = []
-  private physicsSystem: PhysicsSystem
-
-  constructor() {
-    this.physicsSystem = new PhysicsSystem((id: number) => {
-      return this.entities[id]
-    })
-    this.systems = [this.physicsSystem]
+    this.name = name
+    this.systems.push(new InputSystem(this))
   }
 
-  async init(options: Partial<ApplicationOptions>): Promise<void> {
-    this.physicsSystem.init()
-
-    const rs = new RenderSystem(this.stage)
-    await rs.init(options)
-    this.systems.push(rs)
-
-    Ticker.shared.add((t) => {
-      this.update(t.deltaTime)
-    })
-  }
-
-  addEntity(entity: Entity) {
-    this.entities[entity.id] = entity
-
-    const pc = entity.getComponent(PhysicsComponent)
-    if (pc) {
-      this.physicsSystem.registerBody(pc.body, entity)
+  async init(): Promise<void> {
+    for await (const s of this.systems) {
+      await s.init?.()
     }
-
-    this.stage.addChild(entity)
   }
 
-  removeEntity(entityId: number) {
-    const e = this.entities[entityId]
-    if (e) {
-      this.stage.removeChild(e)
-    }
-
-    delete this.entities[entityId]
-  }
-
-  private update(deltaTime: number) {
-    if (this.state?.isPaused) {
-      return
-    }
-
-    const es = Object.values(this.entities)
-
-    this.systems.forEach((s) => s.update(es))
-    es.forEach((s) => s._update(deltaTime))
+  addEntity(e: Entity) {
+    this.addChild(e)
+    this.addedEntities.push(e)
   }
 }

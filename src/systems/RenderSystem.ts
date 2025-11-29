@@ -1,5 +1,4 @@
-import { Entity, type System } from '../core'
-import { ScreenComponent } from '../components'
+import { ECS, type System, Screen, type RenderOptions } from '../core'
 import {
   autoDetectRenderer,
   Container,
@@ -9,17 +8,18 @@ import {
 } from 'pixi.js'
 
 export default class RenderSystem implements System {
+  stage?: Container
   private renderer!: Renderer
-  private stage: Container
+  private options: RenderOptions
 
-  constructor(stage: Container) {
-    this.stage = stage
+  constructor(options: Partial<ApplicationOptions>) {
+    this.options = options
   }
 
-  async init(options: Partial<ApplicationOptions>): Promise<void> {
-    this.renderer = await autoDetectRenderer(options)
+  async init(): Promise<void> {
+    this.renderer = await autoDetectRenderer(this.options)
 
-    ResizePlugin.init.call(this, options)
+    ResizePlugin.init.call(this, this.options)
 
     this.renderer.on('resize', () => {
       this.onResize()
@@ -27,16 +27,18 @@ export default class RenderSystem implements System {
     this.onResize()
   }
 
-  update(_: Entity[]): void {
+  update(_: ECS, __: number): void {
     this.render()
   }
 
   render() {
-    this.renderer.render({ container: this.stage })
+    if (this.stage) {
+      this.renderer.render(this.stage)
+    }
   }
 
   private onResize() {
-    ScreenComponent._width = this.renderer.width
-    ScreenComponent._height = this.renderer.height
+    Screen._width = this.renderer.width
+    Screen._height = this.renderer.height
   }
 }

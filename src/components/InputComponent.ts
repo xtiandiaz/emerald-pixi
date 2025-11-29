@@ -1,6 +1,5 @@
-import type { Point } from 'pixi.js'
+import type { FederatedPointerEvent } from 'pixi.js'
 
 export default class InputComponent {
-  // static onClick?: (pos: Point) => void
-  // onEvent?: (e) => void
+  onPointerEvent?: (e: FederatedPointerEvent) => void
 }
