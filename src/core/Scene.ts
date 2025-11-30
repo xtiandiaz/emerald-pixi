@@ -4,7 +4,7 @@ import { Container } from 'pixi.js'
 
 export default abstract class Scene extends Container {
   readonly name: string
-  readonly addedEntities: Entity[] = []
+  readonly entities: Entity[] = []
   readonly removedEntities: number[] = [] // TODO: handle if any, and clear
   readonly systems: System[] = []
 
@@ -12,17 +12,13 @@ export default abstract class Scene extends Container {
     super()
 
     this.name = name
-    this.systems.push(new InputSystem(this))
+    // this.systems.push(new InputSystem(this))
   }
 
-  async init(): Promise<void> {
-    for await (const s of this.systems) {
-      await s.init?.()
-    }
-  }
+  abstract init(): Promise<void>
 
   addEntity(e: Entity) {
     this.addChild(e)
-    this.addedEntities.push(e)
+    this.entities.push(e)
   }
 }

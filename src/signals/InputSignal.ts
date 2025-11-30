@@ -1,6 +1,7 @@
 import type { Point } from 'pixi.js'
+import Signal from '../core/Signal'
 
-export abstract class InputEvent {}
+export abstract class InputEvent extends Signal {}
 
 export enum PointerInputEventState {
   Started,
@@ -11,9 +12,9 @@ export enum PointerInputEventState {
 export class PointerInputEvent extends InputEvent {
   constructor(
     public point: Point,
-    public index: number,
-    public state: PointerInputEventState,
+    // public index: number,
+    // public state: PointerInputEventState,
   ) {
-    super()
+    super(0)
   }
 }

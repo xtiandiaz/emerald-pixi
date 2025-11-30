@@ -1,12 +1,13 @@
 import { Container } from 'pixi.js'
-import { Component, type AnyComponent } from './'
-import { InputComponent } from '../components'
+import { Component, type AnyComponent, type AnySignal } from './'
+import { Signal } from '../signals'
 
 export default class Entity extends Container {
   readonly id: number
 
   private static nextId = 0
   private components = new Map<string, Component>()
+  private connections = new Map<string, Function>()
 
   constructor() {
     super()
@@ -18,29 +19,30 @@ export default class Entity extends Container {
     const component = new type(...params)
     this.components.set(type.name, component)
 
-    if (component instanceof InputComponent) {
-      this.interactive = true
-    }
-
     return component
   }
 
-  getComponent<T extends Component>(type: AnyComponent<T>): T | undefined {
-    return this.components.get(type.name) as T
-  }
-
-  removeComponent<T extends Component>(type: AnyComponent<T>): boolean {
+  removeComponent<T extends Component>(type: AnyComponent<T>) {
     return this.components.delete(type.name)
   }
 
-  hasComponent<T extends Component>(type: AnyComponent<T>): boolean {
+  hasComponent<T extends Component>(type: AnyComponent<T>) {
     return this.components.has(type.name)
   }
 
-  update?(deltaTime: number): void
-  _update(deltaTime: number) {
-    Object.values(this.components).forEach((c) => {
-      c.update?.(deltaTime)
-    })
+  getComponent<T extends Component>(type: AnyComponent<T>) {
+    return this.components.get(type.name) as T
+  }
+
+  connect<T extends Signal>(signalType: AnySignal<T>, func: Function) {
+    this.connections.set(signalType.name, func)
+  }
+
+  hasConnection(name: string) {
+    return this.connections.has(name)
+  }
+
+  getConnection(name: string) {
+    return this.connections.get(name)
   }
 }

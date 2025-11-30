@@ -1,6 +1,6 @@
-import { Entity, Component, type System, type AnyComponent } from './'
+import { Entity, Component, type AnyComponent, type EntityProvider } from '../core'
 
-export default class ECS {
+export default class EntityManager implements EntityProvider {
   private entities = new Map<number, Entity>()
 
   addEntity(entity: Entity): boolean {
@@ -21,11 +21,11 @@ export default class ECS {
     return this.getEntitiesWithComponent(type).map((e) => e.getComponent(type)!)
   }
 
-  removeEntity(id: number) {
-    this.entities.delete(id)
+  removeEntity(id: number): boolean {
+    return this.entities.delete(id)
   }
 
-  updateSystems(systems: System[], dt: number) {
-    systems.forEach((s) => s.update(this, dt))
+  clear() {
+    this.entities.clear()
   }
 }

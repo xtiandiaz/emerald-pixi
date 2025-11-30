@@ -1,9 +1,11 @@
-import { Entity, type ECS } from './'
+import { Entity, type EntityProvider, type SignalEmitter } from './'
 
 export default abstract class System {
-  init?(): Promise<void>
+  abstract init(): void
+  abstract deinit(): void
+
+  abstract update(ec: EntityProvider, se: SignalEmitter, dt: number): void
 
   onEntityAdded?(entity: Entity): void
-
-  abstract update(ecs: ECS, dt: number): void
+  onEntityRemoved?(entity: Entity): void
 }
