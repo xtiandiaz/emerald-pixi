@@ -72,8 +72,7 @@ export default class GameApp<State extends GameState> extends Application {
       return
     }
     this.scene.entities.forEach((e) => {
-      const isRemoved = this.entityManager.removeEntity(e.id)
-      if (isRemoved) {
+      if (this.entityManager.removeEntity(e.id)) {
         this.allSystems.forEach((s) => s.onEntityRemoved?.(e))
       }
     })
@@ -88,7 +87,7 @@ export default class GameApp<State extends GameState> extends Application {
     this.allSystems.forEach((s) =>
       s.update(this.entityManager, this.signalManager, ticker.deltaTime),
     )
-    this.signalManager.bindSignals(this.entityManager)
+    this.signalManager.connectSignals(this.entityManager)
   }
 
   private updateScreen() {

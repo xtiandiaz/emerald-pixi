@@ -12,7 +12,7 @@ export default class SignalManager implements SignalEmitter {
     }
   }
 
-  bindSignals(ec: EntityProvider) {
+  connectSignals(ec: EntityProvider) {
     for (const entry of this.targetedSignals.entries()) {
       const entity = ec.getEntity(entry[0])
       if (!entity) {

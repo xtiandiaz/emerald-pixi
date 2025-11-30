@@ -1,4 +1,3 @@
-import type { ApplicationOptions } from 'pixi.js'
 import { Entity, Component, Signal } from './'
 
 export type AnyComponent<T extends Component> = new (...params: any) => T
@@ -12,8 +11,5 @@ export interface EntityProvider {
 export type AnySignal<T extends Signal> = new (...params: any) => T
 
 export interface SignalEmitter {
-  emit(s: Signal): void
+  emit(signal: Signal): void
 }
-
-export type GameAppOptions = Partial<ApplicationOptions>
-export type RenderOptions = Partial<ApplicationOptions>
