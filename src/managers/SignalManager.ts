@@ -1,19 +1,18 @@
-import type { EntityProvider, SignalEmitter } from '../core'
-import { Signal } from '../signals'
+import type { EntityProvider, SignalEmitter, Signal, TargetedSignal } from '../core'
 
 export default class SignalManager implements SignalEmitter {
-  private targetedSignals = new Map<number, Signal[]>()
+  private signalIndex = new Map<number, Signal[]>()
 
-  emit(signal: Signal): void {
-    if (!this.targetedSignals.has(signal.targetId)) {
-      this.targetedSignals.set(signal.targetId, [signal])
+  emit(ts: TargetedSignal): void {
+    if (!this.signalIndex.has(ts.targetId)) {
+      this.signalIndex.set(ts.targetId, [ts.signal])
     } else {
-      this.targetedSignals.get(signal.targetId)!.push(signal)
+      this.signalIndex.get(ts.targetId)!.push(ts.signal)
     }
   }
 
   connectSignals(ec: EntityProvider) {
-    for (const entry of this.targetedSignals.entries()) {
+    for (const entry of this.signalIndex.entries()) {
       const entity = ec.getEntity(entry[0])
       if (!entity) {
         continue
@@ -26,6 +25,6 @@ export default class SignalManager implements SignalEmitter {
   }
 
   clear() {
-    this.targetedSignals.clear()
+    this.signalIndex.clear()
   }
 }

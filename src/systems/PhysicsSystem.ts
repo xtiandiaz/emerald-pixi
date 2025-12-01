@@ -1,12 +1,18 @@
-import { Entity, System, type EntityProvider, type SignalEmitter } from '../core'
-import { PhysicsComponent } from '../components'
 import { Engine, Events, Composite, Pair } from 'matter-js'
-import { CollisionSignal, Signal } from '../signals'
+import {
+  Entity,
+  System,
+  type EntityProvider,
+  type SignalEmitter,
+  type TargetedSignal,
+} from '../core'
+import { PhysicsComponent } from '../components'
+import { CollisionSignal } from '../signals'
 
 export default class PhysicsSystem extends System {
   private engine = Engine.create()
   private bodyEntities = new Map<number, number>()
-  private signalQueue: Signal[] = []
+  private signalQueue: TargetedSignal[] = []
 
   init(): void {
     Events.on(this.engine, 'collisionStart', (e) => {
@@ -67,10 +73,10 @@ export default class PhysicsSystem extends System {
         return
       }
       if (!pair.bodyA.isStatic) {
-        this.signalQueue.push(new CollisionSignal(eIdA, eIdB))
+        this.signalQueue.push({ signal: new CollisionSignal(eIdA, eIdB), targetId: eIdA })
       }
       if (!pair.bodyB.isStatic) {
-        this.signalQueue.push(new CollisionSignal(eIdB, eIdA))
+        this.signalQueue.push({ signal: new CollisionSignal(eIdB, eIdA), targetId: eIdB })
       }
     }
   }

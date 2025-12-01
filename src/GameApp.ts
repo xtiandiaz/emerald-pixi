@@ -1,7 +1,7 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
 import { System, Scene, Screen } from './core'
 import { EntityManager, SignalManager } from './managers'
-import { PhysicsSystem } from './systems'
+import { PhysicsSystem, GestureSystem } from './systems'
 
 export interface GameState {
   isPaused: boolean
@@ -13,17 +13,13 @@ export default class GameApp<State extends GameState> extends Application {
   private signalManager: SignalManager
   private scene?: Scene
 
-  protected get allSystems(): System[] {
-    return this.baseSystems.concat(this.scene?.systems ?? [])
-  }
-
   constructor(
     public state: State,
     protected scenes: Scene[],
   ) {
     super()
 
-    this.baseSystems = [new PhysicsSystem()]
+    this.baseSystems = [new PhysicsSystem(), new GestureSystem(this.stage)]
     this.entityManager = new EntityManager()
     this.signalManager = new SignalManager()
   }
@@ -50,7 +46,7 @@ export default class GameApp<State extends GameState> extends Application {
 
     this.entityManager.clear()
     this.signalManager.clear()
-    this.allSystems.forEach((s) => s.deinit())
+    this.baseSystems.forEach((s) => s.deinit())
   }
 
   private async initScene(scene: Scene) {
@@ -58,9 +54,10 @@ export default class GameApp<State extends GameState> extends Application {
 
     this.deinitScene()
 
+    const systems = this.baseSystems.concat(scene.systems)
     scene.entities.forEach((e) => {
       if (this.entityManager.addEntity(e)) {
-        this.allSystems.forEach((s) => s.onEntityAdded?.(e))
+        systems.forEach((s) => s.onEntityAdded?.(e))
       }
     })
     this.stage.addChild(scene)
@@ -73,7 +70,7 @@ export default class GameApp<State extends GameState> extends Application {
     }
     this.scene.entities.forEach((e) => {
       if (this.entityManager.removeEntity(e.id)) {
-        this.allSystems.forEach((s) => s.onEntityRemoved?.(e))
+        this.scene!.systems.forEach((s) => s.onEntityRemoved?.(e))
       }
     })
     this.stage.removeChild(this.scene)
@@ -84,14 +81,17 @@ export default class GameApp<State extends GameState> extends Application {
     if (this.state.isPaused) {
       return
     }
-    this.allSystems.forEach((s) =>
-      s.update(this.entityManager, this.signalManager, ticker.deltaTime),
-    )
+    this.baseSystems
+      .concat(this.scene?.systems ?? [])
+      .forEach((s) => s.update(this.entityManager, this.signalManager, ticker.deltaTime))
+
     this.signalManager.connectSignals(this.entityManager)
   }
 
   private updateScreen() {
     Screen._width = this.renderer.width
     Screen._height = this.renderer.height
+
+    this.stage.hitArea = this.screen
   }
 }

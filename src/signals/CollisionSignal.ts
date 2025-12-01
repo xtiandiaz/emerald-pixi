@@ -6,6 +6,6 @@ export default class CollisionSignal extends Signal {
     public collided: number,
     // public point: Point,
   ) {
-    super(collider)
+    super()
   }
 }

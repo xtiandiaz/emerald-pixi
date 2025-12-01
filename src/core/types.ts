@@ -1,5 +1,12 @@
 import { Entity, Component, Signal } from './'
 
+export enum Direction {
+  Up,
+  Right,
+  Down,
+  Left,
+}
+
 export type AnyComponent<T extends Component> = new (...params: any) => T
 
 export interface EntityProvider {
@@ -10,6 +17,11 @@ export interface EntityProvider {
 
 export type AnySignal<T extends Signal> = new (...params: any) => T
 
+export interface TargetedSignal {
+  signal: Signal
+  targetId: number
+}
+
 export interface SignalEmitter {
-  emit(signal: Signal): void
+  emit(tSignal: TargetedSignal): void
 }
