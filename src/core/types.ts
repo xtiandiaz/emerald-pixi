@@ -1,27 +1,32 @@
-import { Entity, Component, Signal } from './'
+import { Component, System, Signal } from './'
+import { Point } from 'pixi.js'
+
+export { Point as Vector }
 
 export enum Direction {
-  Up,
-  Right,
-  Down,
-  Left,
+  Up = 'UP',
+  Right = 'RIGHT',
+  Down = 'DOWN',
+  Left = 'LEFT',
 }
 
-export type AnyComponent<T extends Component> = new (...params: any) => T
+export type SomeComponent<T extends Component> = new (...params: any) => T
 
-export interface EntityProvider {
-  getEntity(id: number): Entity | undefined
-  getEntitiesWithComponent<T extends Component>(type: AnyComponent<T>): Entity[]
-  getComponents<T extends Component>(type: AnyComponent<T>): T[]
-}
+export type SomeSystem<T extends System> = new () => T
 
-export type AnySignal<T extends Signal> = new (...params: any) => T
+export type SomeSignal<T extends Signal> = new (...params: any) => T
 
-export interface TargetedSignal {
-  signal: Signal
-  targetId: number
-}
+export type SignalConnector<T extends Signal> = (s: T) => void
+export type AnySignalConnector = (s: Signal) => void
 
 export interface SignalEmitter {
-  emit(tSignal: TargetedSignal): void
+  emit<T extends Signal>(signal: T): void
+}
+
+export interface SignalBus {
+  connect<T extends Signal>(type: SomeSignal<T>, connector: SignalConnector<T>): Disconnectable
+}
+
+export interface Disconnectable {
+  disconnect(): void
 }

@@ -1,10 +1,9 @@
-import Signal from '../core/Signal'
+import { Signal } from '../core'
 
 export default class CollisionSignal extends Signal {
   constructor(
-    public collider: number,
-    public collided: number,
-    // public point: Point,
+    public colliderId: number,
+    public collidedId: number,
   ) {
     super()
   }

@@ -1,4 +1,6 @@
+import ScreenResizeSignal from './ScreenResizeSignal'
 import CollisionSignal from './CollisionSignal'
 
-export { CollisionSignal }
-export * from './GestureSignal'
+export { ScreenResizeSignal, CollisionSignal }
+export * from './entity-lifecycle-signals'
+export * from './gesture-signals'

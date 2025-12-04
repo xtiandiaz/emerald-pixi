@@ -1,22 +1,22 @@
 import { Engine, Events, Composite, Pair } from 'matter-js'
-import {
-  Entity,
-  System,
-  type EntityProvider,
-  type SignalEmitter,
-  type TargetedSignal,
-} from '../core'
+import { System, type SignalEmitter, type SignalBus, World, Entity } from '../core'
 import { PhysicsComponent } from '../components'
-import { CollisionSignal } from '../signals'
+import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
 
 export default class PhysicsSystem extends System {
   private engine = Engine.create()
-  private bodyEntities = new Map<number, number>()
-  private signalQueue: TargetedSignal[] = []
+  private bodyIndex = new Map<number, number>() // bodyId: entityId
 
-  init(): void {
+  init(world: World, sbe: SignalBus & SignalEmitter): void {
+    this.disconnectables.push(
+      sbe.connect(EntityAddedSignal, (s) => this.addBodyIfNeeded(world.getEntity(s.entityId)!)),
+      sbe.connect(EntityRemovedSignal, (s) =>
+        this.removeBodyIfNeeded(world.getRemovedEntity(s.entityId)!),
+      ),
+    )
+
     Events.on(this.engine, 'collisionStart', (e) => {
-      this.processCollisionPairs(e.pairs, e.name)
+      this.processCollisionPairs(e.pairs, e.name, sbe)
     })
     // Events.on(this.engine, 'collisionActive', (e) => {
     //   this.processPairs(e.pairs, e.name)
@@ -26,57 +26,45 @@ export default class PhysicsSystem extends System {
     // })
   }
 
-  deinit(): void {
-    Events.off(this.engine, 'collisionStart')
-    this.bodyEntities.clear()
-    this.signalQueue.length = 0
+  update(world: World, se: SignalEmitter, dt: number): void {
+    Engine.update(this.engine)
 
-    Engine.clear(this.engine)
-  }
-
-  update(ec: EntityProvider, se: SignalEmitter, _: number): void {
-    const entities = ec.getEntitiesWithComponent(PhysicsComponent)
-    for (const e of entities) {
-      const pc = e.getComponent(PhysicsComponent)!
+    const ec = world.getEntitiesWithComponent(PhysicsComponent)
+    for (const [e, pc] of ec) {
       e.position.set(pc.body.position.x, pc.body.position.y)
       e.angle = pc.body.angle
     }
-
-    Engine.update(this.engine)
-
-    this.signalQueue.forEach((s) => se.emit(s))
-    this.signalQueue.length = 0
   }
 
-  onEntityAdded(entity: Entity): void {
+  private addBodyIfNeeded(entity: Entity) {
     const pc = entity.getComponent(PhysicsComponent)
-    if (pc) {
+    if (pc && !this.bodyIndex.has(pc.body.id)) {
       Composite.add(this.engine.world, pc.body)
-      this.bodyEntities.set(pc.body.id, entity.id)
+      this.bodyIndex.set(pc.body.id, entity.id)
     }
   }
 
-  onEntityRemoved(entity: Entity): void {
-    const pc = entity.getComponent(PhysicsComponent)
+  private removeBodyIfNeeded(removedEntity: Entity) {
+    const pc = removedEntity.getComponent(PhysicsComponent)
+    // console.log('removing body for', removedEntity, pc)
     if (pc) {
-      Composite.remove(this.engine.world, pc.body)
-      this.bodyEntities.delete(pc.body.id)
+      this.bodyIndex.delete(pc.body.id)
     }
   }
 
-  private processCollisionPairs(pairs: Pair[], _: string) {
+  private processCollisionPairs(pairs: Pair[], _: string, se: SignalEmitter) {
     for (const pair of pairs) {
-      const eIdA = this.bodyEntities.get(pair.bodyA.id)
-      const eIdB = this.bodyEntities.get(pair.bodyB.id)
+      const eIdA = this.bodyIndex.get(pair.bodyA.id)
+      const eIdB = this.bodyIndex.get(pair.bodyB.id)
       if (!eIdA || !eIdB) {
-        console.error('missing entity Id', eIdA, eIdB)
+        console.log('Missing entity Id(s)', eIdA, eIdB)
         return
       }
       if (!pair.bodyA.isStatic) {
-        this.signalQueue.push({ signal: new CollisionSignal(eIdA, eIdB), targetId: eIdA })
+        se.emit(new CollisionSignal(eIdA, eIdB))
       }
       if (!pair.bodyB.isStatic) {
-        this.signalQueue.push({ signal: new CollisionSignal(eIdB, eIdA), targetId: eIdB })
+        se.emit(new CollisionSignal(eIdB, eIdA))
       }
     }
   }
