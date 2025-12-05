@@ -1,14 +1,26 @@
-import { Direction, Signal } from '../core'
+import { Direction, Signal, Vector } from '../core'
 import type { Point } from 'pixi.js'
+import { type GestureStep, GestureKey } from '../input'
 
-export class DragGestureSignal extends Signal {
-  constructor(public movement: Point) {
+export class GestureSignal extends Signal {
+  constructor(public key: GestureKey) {
     super()
   }
 }
 
-export class SwipeGestureSignal extends Signal {
+export class DragGestureSignal extends GestureSignal {
+  constructor(
+    public step: GestureStep,
+    public startPos: Point,
+    public pos: Point,
+    public movement: Vector,
+  ) {
+    super(GestureKey.Drag)
+  }
+}
+
+export class SwipeGestureSignal extends GestureSignal {
   constructor(public direction: Direction) {
-    super()
+    super(GestureKey.Swipe)
   }
 }

@@ -1,5 +1,6 @@
 import { Point, Rectangle, type PointData } from 'pixi.js'
 import 'pixi.js/math-extras'
+import { clamp } from '../utils'
 
 declare module 'pixi.js' {
   interface Rectangle {
@@ -18,12 +19,48 @@ Rectangle.prototype.center = function (this): Point {
 
 declare global {
   interface Vector2Math {
-    divide<T extends PointData>(other: T, outVector?: T): T
-    divideScalar<T extends PointData>(scalar: number, outVector?: T): T
+    clamp<T extends PointData = Point>(min: PointData, max: PointData, outVector?: T): T
+    clampScalar<T extends PointData = Point>(min: number, max: number, outVector?: T): T
+    divideBy<T extends PointData = Point>(other: T, outVector?: T): T
+    divideByScalar<T extends PointData = Point>(scalar: number, outVector?: T): T
   }
 }
 
-Point.prototype.divide = function <T extends PointData>(this, other: T, outVector?: T): T {
+Point.prototype.clamp = function <T extends PointData = Point>(
+  this,
+  min: PointData,
+  max: PointData,
+  outVector?: T,
+): T {
+  if (!outVector) {
+    outVector = new Point() as PointData as T
+  }
+  outVector.x = clamp(this.x, min.x, max.x)
+  outVector.y = clamp(this.y, min.y, max.y)
+
+  return outVector
+}
+
+Point.prototype.clampScalar = function <T extends PointData = Point>(
+  this,
+  min: number,
+  max: number,
+  outVector?: T,
+): T {
+  if (!outVector) {
+    outVector = new Point() as PointData as T
+  }
+  outVector.x = clamp(this.x, min, max)
+  outVector.y = clamp(this.y, min, max)
+
+  return outVector
+}
+
+Point.prototype.divideBy = function <T extends PointData = Point>(
+  this,
+  other: T,
+  outVector?: T,
+): T {
   if (!outVector) {
     outVector = new Point() as PointData as T
   }
@@ -33,16 +70,10 @@ Point.prototype.divide = function <T extends PointData>(this, other: T, outVecto
   return outVector
 }
 
-Point.prototype.divideScalar = function <T extends PointData>(
+Point.prototype.divideByScalar = function <T extends PointData = Point>(
   this,
   scalar: number,
   outVector?: T,
 ): T {
-  if (!outVector) {
-    outVector = new Point() as PointData as T
-  }
-  outVector.x = this.x / scalar
-  outVector.y = this.y / scalar
-
-  return outVector
+  return this.divideBy(new Point(scalar, scalar) as PointData as T, outVector)
 }

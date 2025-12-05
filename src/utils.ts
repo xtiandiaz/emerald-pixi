@@ -1,5 +1,9 @@
 import { Direction, Vector } from './core'
 
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
 export function lerp(from: any, to: any, at: number): any {
   return from + (to - from) * at
 }

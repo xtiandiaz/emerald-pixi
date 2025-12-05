@@ -1,11 +1,17 @@
-import { Engine, Events, Composite, Pair } from 'matter-js'
+import { Engine, Composite, Events, Pair, type IEngineDefinition } from 'matter-js'
 import { System, type SignalEmitter, type SignalBus, World, Entity } from '../core'
 import { PhysicsComponent } from '../components'
 import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
 
 export default class PhysicsSystem extends System {
-  private engine = Engine.create()
+  private engine: Matter.Engine
   private bodyIndex = new Map<number, number>() // bodyId: entityId
+
+  constructor(options?: IEngineDefinition) {
+    super()
+
+    this.engine = Engine.create(options)
+  }
 
   init(world: World, sbe: SignalBus & SignalEmitter): void {
     this.disconnectables.push(

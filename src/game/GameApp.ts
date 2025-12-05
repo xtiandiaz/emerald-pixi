@@ -1,13 +1,13 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
-import { System, Scene, Screen, World } from '../core'
+import { System, Scene, Screen, World, type SomeSystem } from '../core'
 import { SignalController } from '../controllers'
 import { EntityAddedSignal, EntityRemovedSignal, ScreenResizeSignal } from '../signals'
 import { type GameState } from './'
 
 export default abstract class GameApp extends Application {
-  protected world = new World()
-  protected systems: System[] = []
-  protected signalController = new SignalController()
+  protected abstract systems: System[]
+  protected readonly world = new World()
+  protected readonly signalController = new SignalController()
   protected scene?: Scene
 
   constructor(
@@ -24,6 +24,8 @@ export default abstract class GameApp extends Application {
 
     this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAddedSignal(id))
     this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemovedSignal(id))
+
+    this.systems.forEach((s) => s.init?.(this.world, this.signalController))
 
     this.ticker.add(this.update, this)
 
@@ -50,6 +52,10 @@ export default abstract class GameApp extends Application {
 
     this.scene?.deinit()
     this.scene = nextScene
+  }
+
+  protected getSystem<T extends System>(type: SomeSystem<T>): T | undefined {
+    return this.systems.find((s) => s instanceof type) as T
   }
 
   private update(ticker: Ticker) {

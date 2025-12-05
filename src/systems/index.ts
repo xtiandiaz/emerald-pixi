@@ -1,4 +1,4 @@
 import PhysicsSystem from './PhysicsSystem'
-import GestureSystem from '../input/GestureTracker'
+import GestureSystem from './GestureSystem'
 
-export { PhysicsSystem, GestureSystem as GestureSystem }
+export { PhysicsSystem, GestureSystem }
