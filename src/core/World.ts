@@ -8,11 +8,14 @@ export default class World extends Container {
   onEntityAdded?: (id: number) => void
   onEntityRemoved?: (id: number) => void
 
-  addEntity(entity: Entity) {
-    this.entities.set(entity.id, entity)
-    this.addChild(entity)
+  addEntity(...entities: Entity[]): Entity {
+    entities.forEach((e) => {
+      this.entities.set(e.id, e)
+      this.addChild(e)
 
-    this.onEntityAdded?.(entity.id)
+      this.onEntityAdded?.(e.id)
+    })
+    return entities[0]!
   }
 
   hasEntity(id: number): boolean {

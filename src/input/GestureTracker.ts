@@ -1,5 +1,6 @@
 import { Point, type Container, type FederatedPointerEvent } from 'pixi.js'
-import { GestureKey, GestureState, type DragGestureData, type Gesture } from './types'
+import { GestureKey, GestureState } from './types'
+import { Gesture, DragGesture } from './gestures'
 import { Vector } from '../core'
 
 interface GestureTarget extends Container {
@@ -22,21 +23,21 @@ export default class GestureTracker {
   private attempt?: GestureAttempt
 
   constructor(
-    private target: GestureTarget,
-    aims: GestureKey[],
-    private onGesture: <T>(g: Gesture<T>) => void,
+    keys: GestureKey[],
+    private slate: Container,
+    private onGesture: <T extends Gesture>(g: T) => void,
   ) {
-    this.keys = new Set(aims)
+    this.keys = new Set(keys)
   }
 
   init() {
-    this.target.interactive = true
+    this.slate.interactive = true
 
-    this.pointerEventNames.forEach((en) => this.target.on(en, (e) => this.handlePointerEvent(e)))
+    this.pointerEventNames.forEach((en) => this.slate.on(en, (e) => this.handlePointerEvent(e)))
   }
 
   deinit() {
-    this.pointerEventNames.forEach((en) => this.target.removeAllListeners(en))
+    this.pointerEventNames.forEach((en) => this.slate.removeAllListeners(en))
   }
 
   private handlePointerEvent(e: FederatedPointerEvent) {
@@ -60,8 +61,11 @@ export default class GestureTracker {
         break
       case 'pointerup':
       case 'pointerupoutside':
-        this.attempt!.move.set(e.movementX, e.movementY)
-        this.attempt!.pos.set(e.globalX, e.globalY)
+        if (!this.attempt) {
+          break
+        }
+        this.attempt.move.set(e.movementX, e.movementY)
+        this.attempt.pos.set(e.globalX, e.globalY)
         this.sendTrackedGestures(GestureState.Ended, e)
         this.attempt = undefined
 
@@ -83,11 +87,9 @@ export default class GestureTracker {
     Array.from(this.keys).forEach((key) => {
       switch (key) {
         case GestureKey.Drag:
-          this.onGesture<DragGestureData>({
-            key,
-            targetId: this.target.id,
-            data: { state, ...this.attempt! },
-          })
+          this.onGesture(
+            new DragGesture(this.attempt!.move, state, this.attempt!.pos, this.attempt!.startPos),
+          )
           break
       }
     })

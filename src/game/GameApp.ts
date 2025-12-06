@@ -50,7 +50,11 @@ export default abstract class GameApp extends Application {
 
     await nextScene.init(this.world, this.signalController)
 
-    this.scene?.deinit()
+    if (this.scene) {
+      this.stage.removeChild(this.scene.slate)
+      this.scene.deinit()
+    }
+    this.stage.addChild(nextScene.slate)
     this.scene = nextScene
   }
 
