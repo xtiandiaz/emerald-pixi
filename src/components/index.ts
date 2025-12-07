@@ -1,4 +1,4 @@
 import PhysicsComponent from './PhysicsComponent'
-import GestureComponent from './GestureComponent'
 
-export { PhysicsComponent, GestureComponent }
+export { PhysicsComponent }
+export * from './gesture-components'

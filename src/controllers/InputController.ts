@@ -1,16 +1,37 @@
 import type { Container } from 'pixi.js'
-import { Gesture, GestureTracker, type GestureKey } from '../input'
+import {
+  DragGestureTracker,
+  Gesture,
+  GestureKey,
+  GestureTracker,
+  SwipeGestureTracker,
+  TapGestureTracker,
+} from '../input'
 
 export default class InputController {
-  private gestureTracker?: GestureTracker
+  private gestureTrackers = new Map<GestureKey, GestureTracker>()
 
-  trackGestures(
-    keys: GestureKey[],
-    slate: Container,
-    onGesture: <T extends Gesture>(g: T) => void,
-  ) {
-    this.gestureTracker?.deinit()
-    this.gestureTracker = new GestureTracker(keys, slate, onGesture)
-    this.gestureTracker!.init()
+  trackGesture(key: GestureKey, target: Container, onGesture: <T extends Gesture>(g: T) => void) {
+    this.gestureTrackers.get(key)?.deinit()
+
+    const tracker = (() => {
+      switch (key) {
+        case GestureKey.Tap:
+          return new TapGestureTracker(target, onGesture)
+        case GestureKey.Drag:
+          return new DragGestureTracker(target, onGesture)
+        case GestureKey.Swipe:
+          return new SwipeGestureTracker(target, onGesture)
+      }
+    })()
+
+    if (tracker) {
+      tracker.init()
+      this.gestureTrackers.set(key, tracker)
+    }
+  }
+
+  deinit() {
+    this.gestureTrackers.forEach((gt) => gt.deinit())
   }
 }

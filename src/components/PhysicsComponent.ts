@@ -9,18 +9,15 @@ export default class PhysicsComponent {
     this.body = body
   }
 
-  setPosition(p: Point): PhysicsComponent {
+  setPosition(p: Point) {
     Body.setPosition(this.body, p)
-    return this
   }
 
-  setVelocity(v: Vector): PhysicsComponent {
+  setVelocity(v: Vector) {
     Body.setVelocity(this.body, v)
-    return this
   }
 
-  applyForce(p: Point, f: Vector): PhysicsComponent {
+  applyForce(p: Point, f: Vector) {
     Body.applyForce(this.body, p, f)
-    return this
   }
 }

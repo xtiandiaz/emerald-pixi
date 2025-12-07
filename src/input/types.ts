@@ -1,16 +1,18 @@
-import type { Point } from 'pixi.js'
-import type { Direction, Vector } from '../core'
-import type { Gesture } from './gestures'
+export enum PointerEventKey {
+  Down = 'pointerdown',
+  Move = 'pointermove',
+  Up = 'pointerup',
+  UpOutside = 'pointerupoutside',
+}
 
 export enum GestureKey {
+  Tap = 'TAP',
   Drag = 'DRAG',
   Swipe = 'SWIPE',
 }
 
-export enum GestureState {
+export enum GesturePhase {
   Began = 'BEGAN',
-  Updated = 'UPDATED',
+  Changed = 'CHANGED',
   Ended = 'ENDED',
 }
-
-export type SomeGesture<T extends Gesture> = new (...args: any[]) => T

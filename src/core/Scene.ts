@@ -1,12 +1,10 @@
 import { Container, Rectangle } from 'pixi.js'
 import { World, System, Screen, type Disconnectable, type SignalBus, type SignalEmitter } from './'
-import InputController from '../controllers/InputController'
 import { ScreenResizeSignal } from '../signals'
 
 export default abstract class Scene {
   abstract readonly systems: System[]
   readonly slate = new Container()
-  protected input = new InputController()
   protected disconnectables: Disconnectable[] = []
 
   constructor(readonly name: string) {}

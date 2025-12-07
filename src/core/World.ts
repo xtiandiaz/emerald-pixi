@@ -3,6 +3,7 @@ import { Container } from 'pixi.js'
 
 export default class World extends Container {
   private entities = new Map<number, Entity>()
+  private taggedEntities = new Map<string, Entity>()
   private removedEntities = new Map<number, Entity>()
 
   onEntityAdded?: (id: number) => void
@@ -11,6 +12,9 @@ export default class World extends Container {
   addEntity(...entities: Entity[]): Entity {
     entities.forEach((e) => {
       this.entities.set(e.id, e)
+      if (e.tag) {
+        this.taggedEntities.set(e.tag, e)
+      }
       this.addChild(e)
 
       this.onEntityAdded?.(e.id)
@@ -21,9 +25,15 @@ export default class World extends Container {
   hasEntity(id: number): boolean {
     return this.entities.has(id)
   }
+  hasEntityByTag(tag: string): boolean {
+    return this.taggedEntities.has(tag)
+  }
 
   getEntity(id: number): Entity | undefined {
     return this.entities.get(id)
+  }
+  getEntityByTag(tag: string): Entity | undefined {
+    return this.taggedEntities.get(tag)
   }
 
   getEntitiesWithComponent<T extends Component>(type: SomeComponent<T>): [Entity, T][] {
@@ -38,6 +48,9 @@ export default class World extends Container {
       return
     }
     this.entities.delete(id)
+    if (e.tag) {
+      this.taggedEntities.delete(e.tag)
+    }
     this.removeChild(e)
     this.removedEntities.set(e.id, e)
 
@@ -54,6 +67,7 @@ export default class World extends Container {
 
   clear() {
     this.entities.clear()
+    this.taggedEntities.clear()
     this.disposeOfRemovedEntities()
     this.removeChildren()
   }
