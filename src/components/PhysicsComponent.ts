@@ -2,7 +2,7 @@ import { Body } from 'matter-js'
 import type { Point } from 'pixi.js'
 import type { Vector } from '../core'
 
-export default class PhysicsComponent {
+export class PhysicsComponent {
   appliesGravity = true
 
   constructor(public readonly body: Body) {

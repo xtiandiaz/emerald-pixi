@@ -1,7 +1,7 @@
 import { Container } from 'pixi.js'
 import { Component, type SomeComponent } from './'
 
-export default class Entity extends Container {
+export class Entity extends Container {
   private static nextId = 0
   readonly id: number
   private components = new Map<string, Component>()

@@ -1,7 +1,7 @@
 import { Entity, Component, type SomeComponent } from './'
 import { Container } from 'pixi.js'
 
-export default class World extends Container {
+export class World extends Container {
   private entities = new Map<number, Entity>()
   private taggedEntities = new Map<string, Entity>()
   private removedEntities = new Map<number, Entity>()

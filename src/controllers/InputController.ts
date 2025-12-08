@@ -8,7 +8,7 @@ import {
   TapGestureTracker,
 } from '../input'
 
-export default class InputController {
+export class InputController {
   private gestureTrackers = new Map<GestureKey, GestureTracker>()
 
   trackGesture(key: GestureKey, target: Container, onGesture: <T extends Gesture>(g: T) => void) {

@@ -4,7 +4,7 @@ import { SignalController } from '../controllers'
 import { EntityAddedSignal, EntityRemovedSignal, ScreenResizeSignal } from '../signals'
 import { type GameState } from './'
 
-export default abstract class GameApp extends Application {
+export abstract class GameApp extends Application {
   protected abstract systems: System[]
   protected readonly world = new World()
   protected readonly signalController = new SignalController()

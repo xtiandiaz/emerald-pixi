@@ -4,7 +4,7 @@ import PixiPlugin from 'gsap/PixiPlugin'
 
 export type Ease = gsap.EaseString | gsap.EaseFunction
 
-export default class Tweener {
+export class Tweener {
   private static _main?: Tweener
 
   private constructor() {

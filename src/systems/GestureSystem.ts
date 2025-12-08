@@ -3,7 +3,7 @@ import { GestureComponent, GestureTargetComponent } from '../components'
 import { GestureSignal } from '../signals'
 import { GesturePhase, type Gesture } from '../input'
 
-export default class GestureSystem extends System {
+export class GestureSystem extends System {
   private gestureBuffer: Gesture[] = []
   private disposalTargets: number[] = []
 

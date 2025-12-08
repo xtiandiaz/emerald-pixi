@@ -1,4 +1,2 @@
-import GameApp from './GameApp'
-
-export { GameApp }
+export * from './GameApp'
 export * from './types'

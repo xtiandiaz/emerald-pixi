@@ -8,7 +8,7 @@ import type {
   SomeSignal,
 } from '../core'
 
-export default class SignalController implements SignalBus, SignalEmitter {
+export class SignalController implements SignalBus, SignalEmitter {
   private connectors = new Map<string, Set<AnySignalConnector>>()
   private emissionQueue: (() => void)[] = []
 

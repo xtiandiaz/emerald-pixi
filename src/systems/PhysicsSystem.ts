@@ -3,7 +3,7 @@ import { System, type SignalEmitter, type SignalBus, World, Entity } from '../co
 import { PhysicsComponent } from '../components'
 import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
 
-export default class PhysicsSystem extends System {
+export class PhysicsSystem extends System {
   private engine: Matter.Engine
   private bodyIndex = new Map<number, number>() // bodyId: entityId
 

@@ -2,7 +2,7 @@ import { Container, Rectangle } from 'pixi.js'
 import { World, System, Screen, type Disconnectable, type SignalBus, type SignalEmitter } from './'
 import { ScreenResizeSignal } from '../signals'
 
-export default abstract class Scene {
+export abstract class Scene {
   abstract readonly systems: System[]
   readonly slate = new Container()
   protected disconnectables: Disconnectable[] = []

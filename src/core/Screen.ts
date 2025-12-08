@@ -1,4 +1,4 @@
-export default class Screen {
+export class Screen {
   private constructor() {}
 
   static _width = 0

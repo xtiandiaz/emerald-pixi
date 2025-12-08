@@ -1,4 +1,4 @@
-export default abstract class Signal {
+export abstract class Signal {
   readonly name: string
 
   constructor() {
