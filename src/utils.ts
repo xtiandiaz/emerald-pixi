@@ -1,3 +1,4 @@
+import type { Point } from 'pixi.js'
 import { Direction, Vector } from './core'
 
 export function clamp(value: number, min: number, max: number): number {
@@ -21,10 +22,16 @@ export const directionVector = (d: Direction) => {
   }
 }
 
-export function directionFromMovement(movement: Vector): Direction {
-  if (Math.abs(movement.x) > Math.abs(movement.y)) {
-    return movement.x < 0 ? Direction.Left : Direction.Right
+export const directionFromMovement = (m: Vector): Direction => {
+  if (Math.abs(m.x) > Math.abs(m.y)) {
+    return m.x < 0 ? Direction.Left : Direction.Right
   } else {
-    return movement.y < 0 ? Direction.Up : Direction.Down
+    return m.y < 0 ? Direction.Up : Direction.Down
   }
+}
+
+export const duration = (t: number) => Date.now() - t
+
+export const distanceSquared = (a: Point, b: Point) => {
+  return b.subtract(a).magnitudeSquared()
 }

@@ -1,20 +1,25 @@
-import { Engine, Composite, Events, Pair, type IEngineDefinition } from 'matter-js'
+import { Engine, Body, Composite, Events, Pair, Vector, type IEngineDefinition } from 'matter-js'
 import { System, type SignalEmitter, type SignalBus, World, Entity } from '../core'
-import { PhysicsComponent } from '../components'
+import { Physics } from '../components'
 import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
 
 export class PhysicsSystem extends System {
   private engine: Matter.Engine
   private bodyIndex = new Map<number, number>() // bodyId: entityId
 
-  constructor(options?: IEngineDefinition) {
+  constructor() {
     super()
 
-    this.engine = Engine.create(options)
+    this.engine = Engine.create({
+      gravity: {
+        y: 0,
+        scale: 0.0001,
+      },
+    })
   }
 
   init(world: World, sbe: SignalBus & SignalEmitter): void {
-    this.disconnectables.push(
+    this.connections.push(
       sbe.connect(EntityAddedSignal, (s) => this.addBodyIfNeeded(world.getEntity(s.entityId)!)),
       sbe.connect(EntityRemovedSignal, (s) =>
         this.removeBodyIfNeeded(world.getRemovedEntity(s.entityId)!),
@@ -33,17 +38,23 @@ export class PhysicsSystem extends System {
   }
 
   update(world: World, se: SignalEmitter, dt: number): void {
+    const ec = world.getEntitiesWithComponent(Physics)
+    ec.filter(({ c }) => !c.body.isStatic && !c.body.isSleeping)
+      .map(({ c }) => ({ b: c.body, g: c.gravity }))
+      .forEach(({ b, g }) =>
+        Body.applyForce(b, b.position, g.multiplyScalar(-b.mass * this.engine.gravity.scale)),
+      )
+
     Engine.update(this.engine)
 
-    const ec = world.getEntitiesWithComponent(PhysicsComponent)
-    for (const [e, pc] of ec) {
-      e.position.set(pc.body.position.x, pc.body.position.y)
-      e.angle = pc.body.angle
-    }
+    ec.forEach(({ e, c }) => {
+      e.position.set(c.body.position.x, c.body.position.y)
+      e.angle = c.body.angle
+    })
   }
 
   private addBodyIfNeeded(entity: Entity) {
-    const pc = entity.getComponent(PhysicsComponent)
+    const pc = entity.getComponent(Physics)
     if (pc && !this.bodyIndex.has(pc.body.id)) {
       Composite.add(this.engine.world, pc.body)
       this.bodyIndex.set(pc.body.id, entity.id)
@@ -51,7 +62,7 @@ export class PhysicsSystem extends System {
   }
 
   private removeBodyIfNeeded(removedEntity: Entity) {
-    const pc = removedEntity.getComponent(PhysicsComponent)
+    const pc = removedEntity.getComponent(Physics)
     // console.log('removing body for', removedEntity, pc)
     if (pc) {
       this.bodyIndex.delete(pc.body.id)

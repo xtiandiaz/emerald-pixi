@@ -36,10 +36,10 @@ export class World extends Container {
     return this.taggedEntities.get(tag)
   }
 
-  getEntitiesWithComponent<T extends Component>(type: SomeComponent<T>): [Entity, T][] {
+  getEntitiesWithComponent<T extends Component>(type: SomeComponent<T>): { e: Entity; c: T }[] {
     return [...this.entities.values()]
       .filter((e) => e.hasComponent(type))
-      .map((e) => [e, e.getComponent(type)!])
+      .map((e) => ({ e, c: e.getComponent(type)! }))
   }
 
   removeEntity(id: number) {

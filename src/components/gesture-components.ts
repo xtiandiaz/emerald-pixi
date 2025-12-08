@@ -1,25 +1,18 @@
 import type { Container } from 'pixi.js'
 import { Component } from '../core'
 import {
-  DragGesture,
-  DragGestureTracker,
-  GestureKey,
   GestureTracker,
-  SwipeGesture,
-  SwipeGestureTracker,
-  TapGesture,
   TapGestureTracker,
-  type DragTrackerOptions,
+  DragGestureTracker,
+  SwipeGestureTracker,
   type Gesture,
+  type TapGesture,
+  type DragGesture,
+  type SwipeGesture,
+  type DragTrackerOptions,
   type SwipeTrackerOptions,
   type TapTrackerOptions,
 } from '../input'
-
-export class GestureTargetComponent extends Component {
-  constructor(public readonly keys: GestureKey[]) {
-    super()
-  }
-}
 
 export class GestureComponent<T extends Gesture, U> extends Component {
   onGesture?: (g: T) => void

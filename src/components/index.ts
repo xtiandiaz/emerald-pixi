@@ -1,2 +1,2 @@
-export * from './PhysicsComponent'
+export * from './Physics'
 export * from './gesture-components'

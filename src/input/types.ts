@@ -11,9 +11,3 @@ export enum GestureKey {
   Drag = 'DRAG',
   Swipe = 'SWIPE',
 }
-
-export enum GesturePhase {
-  Began = 'BEGAN',
-  Changed = 'CHANGED',
-  Ended = 'ENDED',
-}
