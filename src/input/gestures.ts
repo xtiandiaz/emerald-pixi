@@ -6,6 +6,13 @@ export abstract class Gesture {
   readonly timestamp = Date.now()
   worldPos: Point
 
+  get duration(): number {
+    return Date.now() - this.timestamp
+  }
+  get distanceSquared(): number {
+    return this.worldPos.subtract(this.startWorldPos).magnitudeSquared()
+  }
+
   constructor(
     public key: GestureKey,
     public startWorldPos: Point,

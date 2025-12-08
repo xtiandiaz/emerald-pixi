@@ -1,6 +1,7 @@
 export enum PointerEventKey {
   Down = 'pointerdown',
   Move = 'pointermove',
+  GlobalMove = 'globalpointermove',
   Up = 'pointerup',
   UpOutside = 'pointerupoutside',
 }

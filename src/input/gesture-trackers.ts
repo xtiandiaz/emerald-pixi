@@ -1,23 +1,27 @@
 import { type Container, type FederatedPointerEvent } from 'pixi.js'
-import { GestureKey, GesturePhase, PointerEventKey } from './types'
+import { GesturePhase, PointerEventKey } from './types'
 import { Gesture, TapGesture, DragGesture, SwipeGesture } from './gestures'
 
-export abstract class GestureTracker {
+export abstract class GestureTracker<T extends Gesture, U> {
+  onGesture?: (g: T) => void
   protected abstract pointerEventsKeys: PointerEventKey[]
+  protected gesture?: T
+  private onDeinit?: () => void
 
-  constructor(
-    protected target: Container,
-    protected onGesture: <T extends Gesture>(g: T) => void,
-  ) {}
+  constructor(protected options: U) {}
 
-  init() {
-    this.target.interactive = true
+  init(target: Container, options?: Partial<U>) {
+    target.interactive = true
 
-    this.pointerEventsKeys.forEach((k) => this.target.on(k, (e) => this.handlePointerEvent(e)))
+    if (options) {
+      this.options = { ...options, ...this.options }
+    }
+    this.pointerEventsKeys.forEach((k) => target.on(k, (e) => this.handlePointerEvent(e)))
+    this.onDeinit = () => this.pointerEventsKeys.forEach((k) => target.removeAllListeners(k))
   }
 
   deinit() {
-    this.pointerEventsKeys.forEach((k) => this.target.removeAllListeners(k))
+    this.onDeinit?.()
   }
 
   protected abstract handlePointerEvent(e: FederatedPointerEvent): void
@@ -31,24 +35,19 @@ export abstract class GestureTracker {
   }
 }
 
-export interface TapGestureOptions {
-  timeThresholdMS: number
+export interface TapTrackerOptions {
+  timeLimitMS: number
   distanceLimit: number
 }
 
-export class TapGestureTracker extends GestureTracker {
+export class TapGestureTracker extends GestureTracker<TapGesture, TapTrackerOptions> {
   protected pointerEventsKeys: PointerEventKey[] = [PointerEventKey.Down, PointerEventKey.Up]
-  private gesture?: TapGesture
 
-  constructor(
-    target: Container,
-    onGesture: (g: TapGesture) => void,
-    private options: TapGestureOptions = {
-      timeThresholdMS: 200,
+  constructor() {
+    super({
+      timeLimitMS: 200,
       distanceLimit: 5,
-    },
-  ) {
-    super(target, onGesture)
+    })
   }
 
   protected handlePointerEvent(e: FederatedPointerEvent): void {
@@ -63,32 +62,70 @@ export class TapGestureTracker extends GestureTracker {
         this.gesture.worldPos = e.global
 
         if (
-          this.isWithinDuration(this.gesture, this.options.timeThresholdMS) &&
-          this.isWithinDistance(this.gesture, this.options.distanceLimit)
+          this.gesture.duration <= this.options.timeLimitMS &&
+          this.gesture.distanceSquared <= Math.pow(this.options.distanceLimit, 2)
         ) {
-          this.onGesture(this.gesture)
+          this.onGesture?.(this.gesture)
         }
+        this.gesture = undefined
     }
   }
 }
 
-export class DragGestureTracker extends GestureTracker {
-  protected pointerEventsKeys: PointerEventKey[] = [
-    PointerEventKey.Down,
-    PointerEventKey.Move,
-    PointerEventKey.Up,
-    PointerEventKey.UpOutside,
-  ]
-
-  protected handlePointerEvent(e: FederatedPointerEvent): void {}
+export interface DragTrackerOptions {
+  distanceThreshold: number
 }
 
-export class SwipeGestureTracker extends GestureTracker {
+export class DragGestureTracker extends GestureTracker<DragGesture, DragTrackerOptions> {
+  protected pointerEventsKeys: PointerEventKey[] = [
+    PointerEventKey.Down,
+    PointerEventKey.GlobalMove,
+    PointerEventKey.Up,
+    PointerEventKey.UpOutside,
+  ]
+
+  constructor() {
+    super({
+      distanceThreshold: 0,
+    })
+  }
+
+  protected handlePointerEvent(e: FederatedPointerEvent): void {
+    switch (e.type) {
+      case PointerEventKey.Down:
+        this.gesture = new DragGesture(GesturePhase.Began, e.global.clone())
+        break
+      case PointerEventKey.Move:
+      case PointerEventKey.Up:
+      case PointerEventKey.UpOutside:
+        if (!this.gesture) {
+          break
+        }
+        this.gesture.worldPos = e.global
+
+        if (this.gesture.distanceSquared >= Math.pow(this.options.distanceThreshold, 2)) {
+          this.onGesture?.(this.gesture)
+        }
+        if (e.type != PointerEventKey.Move) {
+          this.gesture = undefined
+        }
+        break
+    }
+  }
+}
+
+export interface SwipeTrackerOptions {}
+
+export class SwipeGestureTracker extends GestureTracker<SwipeGesture, SwipeTrackerOptions> {
   protected pointerEventsKeys: PointerEventKey[] = [
     PointerEventKey.Down,
     PointerEventKey.Up,
     PointerEventKey.UpOutside,
   ]
+
+  constructor() {
+    super({})
+  }
 
   protected handlePointerEvent(e: FederatedPointerEvent): void {}
 }

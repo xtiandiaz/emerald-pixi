@@ -1,9 +1,9 @@
 import { Container } from 'pixi.js'
-import { Component, type SomeComponent } from './'
+import { Component, type SomeComponent } from '.'
 
 export class Entity extends Container {
-  private static nextId = 0
   readonly id: number
+  private static nextId = 0
   private components = new Map<string, Component>()
 
   constructor(public readonly tag?: string) {
@@ -12,13 +12,17 @@ export class Entity extends Container {
     this.id = ++Entity.nextId
   }
 
-  addComponent<T extends Component>(type: SomeComponent<T>, ...args: any): T {
-    const component = new type(...args)
-    this.components.set(type.name, component)
-    return component
+  addComponent<T extends Component>(c: T): T {
+    this.components.set(c.constructor.name, c)
+    c.init?.(this)
+    return c
   }
 
   removeComponent<T extends Component>(type: SomeComponent<T>): boolean {
+    const c = this.getComponent(type)
+    if (c) {
+      c.deinit?.()
+    }
     return this.components.delete(type.name)
   }
 

@@ -1,14 +1,11 @@
-import { Component, type Vector } from '../core'
-import { Body } from 'matter-js'
+import { Component } from '../core'
 import type { Point } from 'pixi.js'
+import type { Vector } from '../core'
+import { Body } from 'matter-js'
 
-export class PhysicsComponent extends Component {
-  appliesGravity = true
-
+export class RigidBody extends Component {
   constructor(public readonly body: Body) {
     super()
-
-    this.body = body
   }
 
   setPosition(p: Point) {

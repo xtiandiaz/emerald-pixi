@@ -10,7 +10,7 @@ export enum Direction {
   Left = 'LEFT',
 }
 
-export type SomeComponent<T extends Component> = new (...params: any) => T
+export type SomeComponent<T extends Component> = new (...args: any) => T
 
 export type SomeSystem<T extends System> = new (...params: any) => T
 
