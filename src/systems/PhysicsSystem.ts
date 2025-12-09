@@ -1,5 +1,5 @@
 import { Engine, Body, Composite, Events, Pair, Vector, type IEngineDefinition } from 'matter-js'
-import { System, type SignalEmitter, type SignalBus, World, Entity } from '../core'
+import { System, World, Entity, type SignalBus } from '../core'
 import { Physics } from '../components'
 import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
 
@@ -18,16 +18,16 @@ export class PhysicsSystem extends System {
     })
   }
 
-  init(world: World, sbe: SignalBus & SignalEmitter): void {
+  init(world: World, sb: SignalBus): void {
     this.connections.push(
-      sbe.connect(EntityAddedSignal, (s) => this.addBodyIfNeeded(world.getEntity(s.entityId)!)),
-      sbe.connect(EntityRemovedSignal, (s) =>
+      sb.connect(EntityAddedSignal, (s) => this.addBodyIfNeeded(world.getEntity(s.entityId)!)),
+      sb.connect(EntityRemovedSignal, (s) =>
         this.removeBodyIfNeeded(world.getRemovedEntity(s.entityId)!),
       ),
     )
 
     Events.on(this.engine, 'collisionStart', (e) => {
-      this.processCollisionPairs(e.pairs, e.name, sbe)
+      this.processCollisionPairs(e.pairs, e.name, sb)
     })
     // Events.on(this.engine, 'collisionActive', (e) => {
     //   this.processPairs(e.pairs, e.name)
@@ -37,7 +37,7 @@ export class PhysicsSystem extends System {
     // })
   }
 
-  update(world: World, se: SignalEmitter, dt: number): void {
+  update(world: World, sb: SignalBus, dt: number): void {
     const ec = world.getEntitiesWithComponent(Physics)
     ec.filter(({ c }) => !c.body.isStatic && !c.body.isSleeping)
       .map(({ c }) => ({ b: c.body, g: c.gravity }))
@@ -69,7 +69,7 @@ export class PhysicsSystem extends System {
     }
   }
 
-  private processCollisionPairs(pairs: Pair[], _: string, se: SignalEmitter) {
+  private processCollisionPairs(pairs: Pair[], _: string, sb: SignalBus) {
     for (const pair of pairs) {
       const eIdA = this.bodyIndex.get(pair.bodyA.id)
       const eIdB = this.bodyIndex.get(pair.bodyB.id)
@@ -78,10 +78,10 @@ export class PhysicsSystem extends System {
         return
       }
       if (!pair.bodyA.isStatic) {
-        se.emit(new CollisionSignal(eIdA, eIdB))
+        sb.emit(new CollisionSignal(eIdA, eIdB))
       }
       if (!pair.bodyB.isStatic) {
-        se.emit(new CollisionSignal(eIdB, eIdA))
+        sb.emit(new CollisionSignal(eIdB, eIdA))
       }
     }
   }

@@ -2,13 +2,12 @@ import type {
   Signal,
   Disconnectable,
   SignalBus,
-  SignalEmitter,
   SignalConnector,
   AnySignalConnector,
   SomeSignal,
 } from '../core'
 
-export class SignalController implements SignalBus, SignalEmitter {
+export class SignalController implements SignalBus {
   private connectors = new Map<string, Set<AnySignalConnector>>()
   private emissionQueue: (() => void)[] = []
 

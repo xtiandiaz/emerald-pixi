@@ -1,5 +1,5 @@
 import type { Point } from 'pixi.js'
-import { Direction, Vector } from './core'
+import { Direction, Vector } from '.'
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))

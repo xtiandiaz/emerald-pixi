@@ -1,14 +1,14 @@
-import type { SignalEmitter, SignalBus, Disconnectable, Entity, World } from './'
+import type { SignalBus, Disconnectable, Entity, World } from './'
 
 export class System {
   protected connections: Disconnectable[] = []
 
-  init?(world: World, sbe: SignalBus & SignalEmitter): void
+  init?(world: World, sb: SignalBus): void
 
   deinit() {
     this.connections.forEach((d) => d.disconnect())
     this.connections.length = 0
   }
 
-  update?(world: World, se: SignalEmitter, dt: number): void
+  update?(world: World, sb: SignalBus, dt: number): void
 }

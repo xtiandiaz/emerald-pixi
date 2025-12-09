@@ -1,6 +1,6 @@
 import { Point, Rectangle, type PointData } from 'pixi.js'
 import 'pixi.js/math-extras'
-import { clamp } from '../utils'
+import { clamp } from '../core/utils'
 
 declare module 'pixi.js' {
   interface Rectangle {

@@ -1,28 +1,34 @@
 import { type Container, type FederatedPointerEvent } from 'pixi.js'
+import type { Disconnectable } from '../core'
 import type { Gesture, TapGesture, DragGesture, SwipeGesture } from './gestures'
 import { PointerEventKey } from './types'
-import { directionFromMovement, distanceSquared, duration } from '../utils'
+import { directionFromMovement, distanceSquared, duration } from '../core/utils'
+import { connectPointerEvent } from './utils'
 
 export abstract class GestureTracker<T extends Gesture, U> {
-  onGesture?: (g: T) => void
   protected abstract pointerEventsKeys: PointerEventKey[]
   protected pGesture?: Partial<T>
-  private onDeinit?: () => void
+  protected onGesture?: (g: T) => void
+  protected connections: Disconnectable[] = []
 
   constructor(protected options: U) {}
 
-  init(target: Container, options?: Partial<U>) {
+  init(target: Container, onGesture: (g: T) => void, options?: Partial<U>) {
     target.interactive = true
+    this.onGesture = onGesture
 
     if (options) {
       this.options = { ...options, ...this.options }
     }
-    this.pointerEventsKeys.forEach((k) => target.on(k, (e) => this.handlePointerEvent(k, e)))
-    this.onDeinit = () => this.pointerEventsKeys.forEach((k) => target.removeAllListeners(k))
+    this.connections.push(
+      ...this.pointerEventsKeys.map((k) =>
+        connectPointerEvent(k, target, (e) => this.handlePointerEvent(k, e)),
+      ),
+    )
   }
 
   deinit() {
-    this.onDeinit?.()
+    this.connections.forEach((c) => c.disconnect())
   }
 
   protected abstract handlePointerEvent(key: PointerEventKey, e: FederatedPointerEvent): void
@@ -108,7 +114,7 @@ export class DragGestureTracker extends GestureTracker<DragGesture, DragTrackerO
           distanceSquared(this.pGesture.startWorldPos!, e.global) >
             Math.pow(this.options.distanceThreshold, 2)
         ) {
-          this.pGesture.phase ||= 1
+          this.pGesture.phase ??= 1
           this.onGesture?.({
             ...this.pGesture,
           } as DragGesture)
@@ -160,7 +166,7 @@ export class SwipeGestureTracker extends GestureTracker<SwipeGesture, SwipeTrack
         ) {
           this.onGesture?.({
             ...this.pGesture,
-            direction: directionFromMovement(e.global.subtract(this.pGesture.startWorldPos!)),
+            direction: e.global.subtract(this.pGesture.startWorldPos!).normalize(),
           } as SwipeGesture)
         }
         this.pGesture = undefined

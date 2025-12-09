@@ -22,8 +22,7 @@ export class GestureComponent<T extends Gesture, U> extends Component {
   }
 
   init(container: Container): void {
-    this.tracker.init(container)
-    this.tracker.onGesture = (g) => this.onGesture?.(g)
+    this.tracker.init(container, (g) => this.onGesture?.(g))
   }
 
   deinit(): void {

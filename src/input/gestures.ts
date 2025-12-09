@@ -1,5 +1,5 @@
 import type { Point } from 'pixi.js'
-import type { Direction } from '../core'
+import type { Direction, Vector } from '../core'
 
 export interface Gesture {
   startWorldPos: Point
@@ -14,5 +14,5 @@ export interface DragGesture extends Gesture {
 }
 
 export interface SwipeGesture extends Gesture {
-  direction: Direction
+  direction: Vector
 }
