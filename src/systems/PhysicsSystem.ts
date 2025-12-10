@@ -1,4 +1,4 @@
-import { Engine, Body, Composite, Events, Pair, Vector, type IEngineDefinition } from 'matter-js'
+import { Engine, Body, Composite, Events, Pair } from 'matter-js'
 import { System, World, Entity, type SignalBus } from '../core'
 import { Physics } from '../components'
 import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
@@ -27,7 +27,7 @@ export class PhysicsSystem extends System {
     )
 
     Events.on(this.engine, 'collisionStart', (e) => {
-      this.processCollisionPairs(e.pairs, e.name, sb)
+      this.processCollisionPairs(e.pairs, e.name, sb, world)
     })
     // Events.on(this.engine, 'collisionActive', (e) => {
     //   this.processPairs(e.pairs, e.name)
@@ -69,7 +69,7 @@ export class PhysicsSystem extends System {
     }
   }
 
-  private processCollisionPairs(pairs: Pair[], _: string, sb: SignalBus) {
+  private processCollisionPairs(pairs: Pair[], _: string, sb: SignalBus, world: World) {
     for (const pair of pairs) {
       const eIdA = this.bodyIndex.get(pair.bodyA.id)
       const eIdB = this.bodyIndex.get(pair.bodyB.id)

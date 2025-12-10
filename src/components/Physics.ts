@@ -1,14 +1,23 @@
 import { Component, Vector } from '../core'
 import { Body } from 'matter-js'
-import type { Point } from 'pixi.js'
+import { Point } from 'pixi.js'
 
 export class Physics extends Component {
   gravity = new Vector(0, -10)
+
+  get position() {
+    return new Point(this.body.position.x, this.body.position.y)
+  }
 
   constructor(public readonly body: Body) {
     super()
 
     this.body = body
+  }
+
+  setGravity(x: number, y: number): Physics {
+    this.gravity.set(x, y)
+    return this
   }
 
   setPosition(p: Point) {

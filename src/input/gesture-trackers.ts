@@ -1,7 +1,7 @@
 import { type Container, type FederatedPointerEvent } from 'pixi.js'
 import type { Disconnectable } from '../core'
 import type { Gesture, TapGesture, DragGesture, SwipeGesture } from './gestures'
-import { PointerEventKey } from './types'
+import { GesturePhase, PointerEventKey } from './types'
 import { directionFromMovement, distanceSquared, duration } from '../core/utils'
 import { connectPointerEvent } from './utils'
 
@@ -110,11 +110,15 @@ export class DragGestureTracker extends GestureTracker<DragGesture, DragTrackerO
         this.pGesture.worldPos = e.global
 
         if (
-          this.pGesture.phase ||
           distanceSquared(this.pGesture.startWorldPos!, e.global) >
-            Math.pow(this.options.distanceThreshold, 2)
+          Math.pow(this.options.distanceThreshold, 2)
         ) {
-          this.pGesture.phase ??= 1
+          if (!this.pGesture.phase) {
+            this.pGesture.phase = GesturePhase.Began
+          } else {
+            this.pGesture.phase =
+              key == PointerEventKey.GlobalMove ? GesturePhase.Changed : GesturePhase.Ended
+          }
           this.onGesture?.({
             ...this.pGesture,
           } as DragGesture)
