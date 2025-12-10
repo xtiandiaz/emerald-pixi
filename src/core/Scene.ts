@@ -7,7 +7,7 @@ export abstract class Scene {
   readonly slate = new Container()
   protected connections: Disconnectable[] = []
 
-  constructor(readonly name: string) {}
+  constructor(public readonly name: string) {}
 
   async init(world: World, sb: SignalBus): Promise<void> {
     this.connections.push(
@@ -17,9 +17,8 @@ export abstract class Scene {
   }
 
   deinit(): void {
+    this.connections.forEach((c) => c.disconnect())
     this.systems.forEach((s) => s.deinit?.())
-    this.connections.forEach((d) => d.disconnect())
-    this.connections.length = 0
   }
 
   protected onScreenResized(w: number, h: number) {

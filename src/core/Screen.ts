@@ -1,13 +1,13 @@
 export class Screen {
   private constructor() {}
 
-  static _width = 0
+  static _w = 0
   static get width(): number {
-    return Screen._width
+    return Screen._w
   }
 
-  static _height = 0
+  static _h = 0
   static get height(): number {
-    return Screen._height
+    return Screen._h
   }
 }

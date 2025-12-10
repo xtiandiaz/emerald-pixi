@@ -1,4 +1,4 @@
-import type { Container, ContainerChild, ContainerEvents, FederatedPointerEvent } from 'pixi.js'
+import type { Container, FederatedPointerEvent } from 'pixi.js'
 import type { Disconnectable } from '../core'
 import type { PointerEventKey } from './types'
 

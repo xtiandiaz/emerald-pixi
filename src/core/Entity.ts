@@ -1,12 +1,13 @@
 import { Container } from 'pixi.js'
 import { Component, type SomeComponent } from '.'
+import { Body } from 'matter-js'
 
 export class Entity extends Container {
   readonly id: number
   private static nextId = 0
   private components = new Map<string, Component>()
 
-  constructor(public readonly tag?: string) {
+  constructor() {
     super()
 
     this.id = ++Entity.nextId

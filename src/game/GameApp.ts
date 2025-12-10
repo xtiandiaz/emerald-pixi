@@ -1,17 +1,26 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
-import { System, Scene, Screen, World, type SomeSystem } from '../core'
+import {
+  System,
+  Scene,
+  Screen,
+  World,
+  type SomeSystem,
+  type SignalBus,
+  type Disconnectable,
+} from '../core'
 import { SignalController } from '../controllers'
 import { EntityAddedSignal, EntityRemovedSignal, ScreenResizeSignal } from '../signals'
 import { type GameState } from './'
 
-export abstract class GameApp extends Application {
+export abstract class GameApp<State extends GameState> extends Application {
   protected abstract systems: System[]
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
+  private disconnectables: Disconnectable[] = []
 
   constructor(
-    public state: GameState,
+    public state: State,
     private scenes: Scene[],
   ) {
     super()
@@ -25,6 +34,8 @@ export abstract class GameApp extends Application {
     this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAddedSignal(id))
     this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemovedSignal(id))
 
+    this.disconnectables.push(...(this.connect?.(this.signalController) ?? []))
+
     this.systems.forEach((s) => s.init?.(this.world, this.signalController))
 
     this.ticker.add(this.update, this)
@@ -33,7 +44,10 @@ export abstract class GameApp extends Application {
     this.updateScreen()
   }
 
+  connect?(sb: SignalBus): Disconnectable[]
+
   deinit() {
+    this.disconnectables.forEach((d) => d.disconnect())
     this.ticker.remove(this.update, this)
     this.renderer.off('resize', this.updateScreen, this)
 
@@ -66,20 +80,22 @@ export abstract class GameApp extends Application {
     if (this.state.isPaused) {
       return
     }
-    this.signalController.processSignals()
-
-    this.world.disposeOfRemovedEntities()
+    this.signalController.emitQueuedSignals()
 
     this.systems.concat(this.scene?.systems ?? []).forEach((s) => {
       s.update?.(this.world, this.signalController, ticker.deltaTime)
     })
+
+    this.signalController.emitQueuedSignals()
+
+    this.world.disposeOfRemovedEntities()
   }
 
   private updateScreen() {
-    Screen._width = this.renderer.width
-    Screen._height = this.renderer.height
+    Screen._w = this.renderer.width
+    Screen._h = this.renderer.height
 
-    this.signalController.emit(new ScreenResizeSignal(this.renderer.width, this.renderer.height))
+    this.signalController.queue(new ScreenResizeSignal(this.renderer.width, this.renderer.height))
 
     this.stage.hitArea = this.screen
   }

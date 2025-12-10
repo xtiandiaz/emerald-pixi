@@ -10,6 +10,8 @@ export enum Direction {
   Left = 'LEFT',
 }
 
+export type KeyMap<T> = { [key: string]: T }
+
 export type SomeComponent<T extends Component> = new (...args: any) => T
 
 export type SomeSystem<T extends System> = new (...args: any) => T
@@ -21,6 +23,7 @@ export type AnySignalConnector = (s: Signal) => void
 
 export interface SignalBus {
   emit<T extends Signal>(signal: T): void
+  queue<T extends Signal>(signal: T): void
   connect<T extends Signal>(type: SomeSignal<T>, connector: SignalConnector<T>): Disconnectable
 }
 

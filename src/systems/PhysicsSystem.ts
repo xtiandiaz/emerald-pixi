@@ -21,9 +21,9 @@ export class PhysicsSystem extends System {
   init(world: World, sb: SignalBus): void {
     this.connections.push(
       sb.connect(EntityAddedSignal, (s) => this.addBodyIfNeeded(world.getEntity(s.entityId)!)),
-      sb.connect(EntityRemovedSignal, (s) =>
-        this.removeBodyIfNeeded(world.getRemovedEntity(s.entityId)!),
-      ),
+      sb.connect(EntityRemovedSignal, (s) => {
+        this.removeBodyIfNeeded(world.getRemovedEntity(s.entityId)!)
+      }),
     )
 
     Events.on(this.engine, 'collisionStart', (e) => {
@@ -55,6 +55,7 @@ export class PhysicsSystem extends System {
 
   private addBodyIfNeeded(entity: Entity) {
     const pc = entity.getComponent(Physics)
+    // console.log('adding body for', entity, pc)
     if (pc && !this.bodyIndex.has(pc.body.id)) {
       Composite.add(this.engine.world, pc.body)
       this.bodyIndex.set(pc.body.id, entity.id)
@@ -65,6 +66,7 @@ export class PhysicsSystem extends System {
     const pc = removedEntity.getComponent(Physics)
     // console.log('removing body for', removedEntity, pc)
     if (pc) {
+      Composite.remove(this.engine.world, pc.body)
       this.bodyIndex.delete(pc.body.id)
     }
   }
@@ -78,10 +80,10 @@ export class PhysicsSystem extends System {
         return
       }
       if (!pair.bodyA.isStatic) {
-        sb.emit(new CollisionSignal(eIdA, eIdB))
+        sb.queue(new CollisionSignal(eIdA, eIdB))
       }
       if (!pair.bodyB.isStatic) {
-        sb.emit(new CollisionSignal(eIdB, eIdA))
+        sb.queue(new CollisionSignal(eIdB, eIdA))
       }
     }
   }

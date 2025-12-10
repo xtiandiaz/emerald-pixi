@@ -1,19 +1,22 @@
 import type {
   Signal,
-  Disconnectable,
   SignalBus,
   SignalConnector,
   AnySignalConnector,
   SomeSignal,
+  Disconnectable,
 } from '../core'
 
 export class SignalController implements SignalBus {
   private connectors = new Map<string, Set<AnySignalConnector>>()
-  private emissionQueue: (() => void)[] = []
+  private signalQueue: Signal[] = []
 
   emit<T extends Signal>(signal: T): void {
-    const connectors = this.connectors.get(signal.name)
-    connectors?.forEach((c) => this.emissionQueue.push(() => c(signal as T)))
+    this.connectors.get(signal.name)?.forEach((c) => c(signal))
+  }
+
+  queue<T extends Signal>(signal: T): void {
+    this.signalQueue.push(signal)
   }
 
   connect<T extends Signal>(type: SomeSignal<T>, connector: SignalConnector<T>): Disconnectable {
@@ -31,8 +34,12 @@ export class SignalController implements SignalBus {
     this.connectors.get(type.name)?.delete(connector as AnySignalConnector)
   }
 
-  processSignals() {
-    this.emissionQueue.forEach((e) => e())
-    this.emissionQueue.length = 0
+  emitQueuedSignals() {
+    const signals = [...this.signalQueue]
+    this.signalQueue.length = 0
+
+    for (const s of signals) {
+      this.emit(s)
+    }
   }
 }

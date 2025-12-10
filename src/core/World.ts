@@ -3,39 +3,37 @@ import { Container } from 'pixi.js'
 
 export class World extends Container {
   private entities = new Map<number, Entity>()
-  private taggedEntities = new Map<string, Entity>()
   private removedEntities = new Map<number, Entity>()
 
   onEntityAdded?: (id: number) => void
   onEntityRemoved?: (id: number) => void
 
-  addEntity(...entities: Entity[]): Entity {
-    entities.forEach((e) => {
-      this.entities.set(e.id, e)
-      if (e.tag) {
-        this.taggedEntities.set(e.tag, e)
+  addEntity(...entities: Entity[]): World {
+    for (const e of entities) {
+      if (this.hasEntity(e.id)) {
+        continue
       }
+      this.entities.set(e.id, e)
       this.addChild(e)
 
       this.onEntityAdded?.(e.id)
-    })
-    return entities[0]!
+    }
+    return this
   }
 
   hasEntity(id: number): boolean {
     return this.entities.has(id)
   }
-  hasEntityByTag(tag: string): boolean {
-    return this.taggedEntities.has(tag)
-  }
 
   getEntity(id: number): Entity | undefined {
     return this.entities.get(id)
   }
-  getEntityByTag(tag: string): Entity | undefined {
-    return this.taggedEntities.get(tag)
+  getEntityByLabel(label: RegExp | string, deep?: boolean): Entity | undefined {
+    return this.getChildByLabel(label, deep) as Entity
   }
-
+  getEntitiesByLabel(label: RegExp | string, deep?: boolean, out?: Container[]): Entity[] {
+    return this.getChildrenByLabel(label, deep, out) as Entity[]
+  }
   getEntitiesWithComponent<T extends Component>(type: SomeComponent<T>): { e: Entity; c: T }[] {
     return [...this.entities.values()]
       .filter((e) => e.hasComponent(type))
@@ -48,11 +46,8 @@ export class World extends Container {
       return
     }
     this.entities.delete(id)
-    if (e.tag) {
-      this.taggedEntities.delete(e.tag)
-    }
     this.removeChild(e)
-    this.removedEntities.set(e.id, e)
+    this.removedEntities.set(id, e)
 
     this.onEntityRemoved?.(id)
   }
@@ -67,7 +62,6 @@ export class World extends Container {
 
   clear() {
     this.entities.clear()
-    this.taggedEntities.clear()
     this.disposeOfRemovedEntities()
     this.removeChildren()
   }

@@ -1,6 +1,6 @@
 import { Component, Vector } from '../core'
 import { Body } from 'matter-js'
-import { Point } from 'pixi.js'
+import { Container, Point } from 'pixi.js'
 
 export class Physics extends Component {
   gravity = new Vector(0, -10)
@@ -13,6 +13,10 @@ export class Physics extends Component {
     super()
 
     this.body = body
+  }
+
+  init(container: Container): void {
+    container.position.set(this.body.position.x, this.body.position.y)
   }
 
   setGravity(x: number, y: number): Physics {
