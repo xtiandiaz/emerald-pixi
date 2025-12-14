@@ -50,7 +50,7 @@ export class PhysicsSystem extends System {
       c.velocity.set(c.velocity.x + aX * halfDtSqrd, c.velocity.y + aY * halfDtSqrd)
       c.position.set(c.x + c.velocity.x * dt, c.y + c.velocity.y * dt)
       e.position.copyFrom(c.position)
-      // e.angle = (c.angle * 180) / Math.PI
+      e.rotation = c.rotation
     }
   }
 }

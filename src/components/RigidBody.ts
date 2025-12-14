@@ -2,47 +2,33 @@ import { Point } from 'pixi.js'
 import { Component, Vector } from '../core'
 
 export class RigidBody extends Component {
+  position: Point
+  rotation: number
+  velocity = new Vector()
+  gravity = new Vector(0, 10)
+  force = new Vector()
   mass = 1
 
   isStatic = false
   isSensor = false
 
-  private p: Point
-  get position() {
-    return this.p
-  }
-
   get x(): number {
-    return this.p.x
+    return this.position.x
   }
   set x(val: number) {
-    this.p.x = val
+    this.position.x = val
   }
   get y(): number {
-    return this.p.y
+    return this.position.y
   }
   set y(val: number) {
-    this.p.y = val
+    this.position.y = val
   }
 
-  private v = new Vector()
-  get velocity() {
-    return this.v
-  }
-
-  private f = new Vector()
-  get force() {
-    return this.f
-  }
-
-  private g = new Vector(0, 10)
-  get gravity() {
-    return this.g
-  }
-
-  constructor(x?: number, y?: number) {
+  constructor(x?: number, y?: number, rotation?: number) {
     super()
 
-    this.p = new Point(x, y)
+    this.position = new Point(x, y)
+    this.rotation = rotation ?? 0
   }
 }
