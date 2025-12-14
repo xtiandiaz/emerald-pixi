@@ -1,23 +1,14 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
-import {
-  System,
-  Scene,
-  Screen,
-  World,
-  type SomeSystem,
-  type SignalBus,
-  type Disconnectable,
-} from '../core'
+import { Scene, Screen, World, type SignalBus, type Disconnectable } from '../core'
 import { SignalController } from '../controllers'
 import { EntityAddedSignal, EntityRemovedSignal, ScreenResizeSignal } from '../signals'
 import { type GameState } from './'
 
 export abstract class GameApp<State extends GameState> extends Application {
-  protected abstract systems: System[]
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
-  private disconnectables: Disconnectable[] = []
+  private connections: Disconnectable[] = []
 
   constructor(
     public state: State,
@@ -34,9 +25,7 @@ export abstract class GameApp<State extends GameState> extends Application {
     this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAddedSignal(id))
     this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemovedSignal(id))
 
-    this.disconnectables.push(...(this.connect?.(this.signalController) ?? []))
-
-    this.systems.forEach((s) => s.init?.(this.world, this.signalController))
+    this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
     this.ticker.add(this.update, this)
 
@@ -47,7 +36,9 @@ export abstract class GameApp<State extends GameState> extends Application {
   connect?(sb: SignalBus): Disconnectable[]
 
   deinit() {
-    this.disconnectables.forEach((d) => d.disconnect())
+    this.connections.forEach((d) => d.disconnect())
+    this.connections.length = 0
+
     this.ticker.remove(this.update, this)
     this.renderer.off('resize', this.updateScreen, this)
 
@@ -60,20 +51,15 @@ export abstract class GameApp<State extends GameState> extends Application {
     if (!nextScene) {
       return
     }
-    nextScene.systems.forEach((s) => s.init?.(this.world, this.signalController))
 
     await nextScene.init(this.world, this.signalController)
 
     if (this.scene) {
-      this.stage.removeChild(this.scene.slate)
       this.scene.deinit()
+      this.stage.removeChild(this.scene.hud)
     }
-    this.stage.addChild(nextScene.slate)
+    this.stage.addChild(nextScene.hud)
     this.scene = nextScene
-  }
-
-  protected getSystem<T extends System>(type: SomeSystem<T>): T | undefined {
-    return this.systems.find((s) => s instanceof type) as T
   }
 
   private update(ticker: Ticker) {
@@ -82,7 +68,7 @@ export abstract class GameApp<State extends GameState> extends Application {
     }
     this.signalController.emitQueuedSignals()
 
-    this.systems.concat(this.scene?.systems ?? []).forEach((s) => {
+    this.scene?.systems.forEach((s) => {
       s.update?.(this.world, this.signalController, ticker.deltaTime)
     })
 
@@ -96,7 +82,5 @@ export abstract class GameApp<State extends GameState> extends Application {
     Screen._h = this.renderer.height
 
     this.signalController.queue(new ScreenResizeSignal(this.renderer.width, this.renderer.height))
-
-    this.stage.hitArea = this.screen
   }
 }

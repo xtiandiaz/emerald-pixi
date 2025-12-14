@@ -1,6 +1,7 @@
 import { System, World, Entity, type SignalBus } from '../core'
 import { RigidBody } from '../components'
-import { CollisionSignal, EntityAddedSignal, EntityRemovedSignal } from '../signals'
+import { EntityAddedSignal } from '../signals'
+import type { Container } from 'pixi.js'
 
 export interface PhysicsSystemOptions {
   gravityScale: number
@@ -18,27 +19,37 @@ export class PhysicsSystem extends System {
     }
   }
 
-  init(world: World, sb: SignalBus): void {}
+  init(world: World, hud: Container, sb: SignalBus): void {
+    world.getEntitiesWithComponent(RigidBody).forEach(({ e, c }) => {
+      e.position.copyFrom(c.position)
+    })
+
+    this.connections.push(
+      sb.connect(EntityAddedSignal, (s) => {
+        const e = world.getEntity(s.entityId)
+        const rb = e?.getComponent(RigidBody)
+        if (rb) {
+          e!.position.copyFrom(rb.position)
+        }
+      }),
+    )
+  }
 
   update(world: World, sb: SignalBus, dt: number): void {
-    const ecs = world.getEntitiesWithComponent(RigidBody)
+    const ecs = world.getEntitiesWithComponent(RigidBody).filter(({ c }) => !c.isStatic)
 
     for (const { e, c } of ecs) {
-      let fX = c.force.x
-      let fY = c.force.y
+      const fX = c.force.x + c.gravity.x * this.options.gravityScale
+      const fY = c.force.y + c.gravity.y * this.options.gravityScale
       c.force.set(0, 0)
 
-      if (!c.isStatic) {
-        fX += c.gravity.x * this.options.gravityScale
-        fY += c.gravity.y * this.options.gravityScale
-      }
       const aX = fX / c.mass
       const aY = fY / c.mass
 
       const halfDtSqrd = 0.5 * dt * dt
       c.velocity.set(c.velocity.x + aX * halfDtSqrd, c.velocity.y + aY * halfDtSqrd)
       c.position.set(c.x + c.velocity.x * dt, c.y + c.velocity.y * dt)
-      e.position.set(c.position.x, c.position.y)
+      e.position.copyFrom(c.position)
       // e.angle = (c.angle * 180) / Math.PI
     }
   }

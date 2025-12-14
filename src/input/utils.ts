@@ -1,6 +1,5 @@
-import type { Container, FederatedPointerEvent } from 'pixi.js'
+import type { Container, ContainerChild, ContainerEvents, EventEmitter } from 'pixi.js'
 import type { Disconnectable } from '../core'
-import type { PointerEventKey } from './types'
 
 export function connectDocumentEvent<K extends keyof DocumentEventMap>(
   key: K,
@@ -13,10 +12,16 @@ export function connectDocumentEvent<K extends keyof DocumentEventMap>(
   }
 }
 
-export function connectPointerEvent(
-  key: PointerEventKey,
+type AnyEvent = { [K: ({} & string) | ({} & symbol)]: any }
+export function connectContainerEvent<K extends keyof ContainerEvents<ContainerChild>>(
+  key: K,
   target: Container,
-  connector: (e: FederatedPointerEvent) => void,
+  connector: (
+    ...args: EventEmitter.ArgumentMap<ContainerEvents<ContainerChild> & AnyEvent>[Extract<
+      K,
+      keyof ContainerEvents<ContainerChild> | keyof AnyEvent
+    >]
+  ) => void,
 ): Disconnectable {
   target.on(key, connector)
 

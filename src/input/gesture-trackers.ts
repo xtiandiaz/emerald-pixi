@@ -3,7 +3,7 @@ import type { Disconnectable } from '../core'
 import type { Gesture, TapGesture, DragGesture, SwipeGesture } from './gestures'
 import { GesturePhase, PointerEventKey } from './types'
 import { directionFromMovement, distanceSquared, duration } from '../core/utils'
-import { connectPointerEvent } from './utils'
+import { connectContainerEvent } from './utils'
 
 export abstract class GestureTracker<T extends Gesture, U> {
   protected abstract pointerEventsKeys: PointerEventKey[]
@@ -22,7 +22,7 @@ export abstract class GestureTracker<T extends Gesture, U> {
     }
     this.connections.push(
       ...this.pointerEventsKeys.map((k) =>
-        connectPointerEvent(k, target, (e) => this.handlePointerEvent(k, e)),
+        connectContainerEvent(k, target, (e) => this.handlePointerEvent(k, e)),
       ),
     )
   }
