@@ -1,3 +1,4 @@
 export * from './RigidBody'
 export * from './collider-components'
+export * from './GestureTarget'
 export * from './gesture-components'
