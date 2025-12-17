@@ -3,6 +3,11 @@ import { Point } from 'pixi.js'
 
 export { Point as Vector }
 
+export interface Range {
+  min: number
+  max: number
+}
+
 export enum Direction {
   Up = 'UP',
   Right = 'RIGHT',

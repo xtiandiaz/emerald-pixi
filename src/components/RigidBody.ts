@@ -5,7 +5,7 @@ export class RigidBody extends Component {
   position: Point
   rotation: number
   velocity = new Vector()
-  gravity = new Vector(0, 10)
+  gravity = new Vector(0, 9.81)
   force = new Vector()
   mass = 1
 

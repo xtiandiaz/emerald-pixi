@@ -1,8 +1,8 @@
-import { Graphics, Point, type PointData } from 'pixi.js'
-import { Component, distanceSquared, testForAABBV, Vector } from '../core'
+import { Graphics, type PointData } from 'pixi.js'
+import { Component, distanceSquared, testForAABBV, Vector, type Range } from '../core'
 
 export abstract class CollisionShape {
-  readonly position = new Point()
+  readonly position = new Vector()
   readonly vertices: number[]
   readonly aabb: number[] = Array(4).fill(0)
 
@@ -46,57 +46,67 @@ export abstract class CollisionShape {
     }
   }
 
-  collides<T extends CollisionShape>(other: T): boolean {
+  testCollision<T extends CollisionShape>(other: T): boolean {
     if (other instanceof RectangleCS) {
-      return this.collidesRectangle(other)
+      return this.testRectangleCollision(other)
     } else if (other instanceof CircleCS) {
-      return this.collidesCircle(other)
+      return this.testCircleCollision(other)
+    } else if (other instanceof PolygonCS) {
+      return this.testShapeCollision(other)
     } else {
-      console.error('Not implemented')
+      console.error('Not implemented!')
       return false
     }
   }
-  abstract collidesRectangle(rectangle: RectangleCS): boolean
-  abstract collidesCircle(circle: CircleCS): boolean
+  abstract testRectangleCollision(rectangle: RectangleCS): boolean
+  abstract testCircleCollision(circle: CircleCS): boolean
 
-  /* 
-    Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/ 
-  */
-  collidesPolygon(polygon: PolygonCS): boolean {
-    function overlapsProjection(from: number[], to: number[]) {
-      let dot: number, minDotFrom: number, maxDotFrom: number, minDotTo: number, maxDotTo: number
-      for (let i = 0; i < from.length; i += 2) {
-        const v0 = [from[i]!, from[i + 1]!]
-        const v1 = [from[(i + 2) % from.length]!, from[(i + 3) % from.length]!]
-        const normal = new Vector(v1[1]! - v0[1]!, v0[0]! - v1[0]!)
-        minDotFrom = Infinity
-        maxDotFrom = -Infinity
-        for (let j = 0; j < from.length; j += 2) {
-          dot = normal.dot({ x: from[j]!, y: from[j + 1]! })
-          minDotFrom = Math.min(minDotFrom, dot)
-          maxDotFrom = Math.max(maxDotFrom, dot)
-        }
-        minDotTo = Infinity
-        maxDotTo = -Infinity
-        for (let j = 0; j < to.length; j += 2) {
-          dot = normal.dot({ x: to[j]!, y: to[j + 1]! })
-          minDotTo = Math.min(minDotTo, dot)
-          maxDotTo = Math.max(maxDotTo, dot)
-        }
-        if (minDotFrom > maxDotTo || minDotTo > maxDotFrom) {
-          return false
-        }
-      }
-      return true
-    }
+  testShapeCollision(other: CollisionShape): boolean {
     return (
-      overlapsProjection(this.vertices, polygon.vertices) &&
-      overlapsProjection(polygon.vertices, this.vertices)
+      this.testVerticesProjectionOverlap(this.vertices, other.vertices) &&
+      this.testVerticesProjectionOverlap(other.vertices, this.vertices)
     )
   }
 
   createDebugGraphics(): Graphics {
     return new Graphics().poly(this.points).stroke({ width: 1, color: 0x00ffff })
+  }
+
+  /* 
+    Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/ 
+  */
+  protected testVerticesProjectionOverlap(verticesA: number[], verticesB: number[]) {
+    return this.testProjectionOverlap(verticesA, (axis) => this.getProjectionRange(verticesB, axis))
+  }
+  protected testProjectionOverlap(verticesA: number[], getRangeB: (axis: Vector) => Range) {
+    for (let i = 0; i < verticesA.length; i += 2) {
+      const axis = this.getProjectionAxis(verticesA, i)
+      const pRangeA = this.getProjectionRange(verticesA, axis)
+      const pRangeB = getRangeB(axis)
+
+      if (pRangeB.max < pRangeA.min || pRangeA.max < pRangeB.min) {
+        return false
+      }
+    }
+    return true
+  }
+
+  protected getProjectionRange(vertices: number[], axisNorm: Vector): Range {
+    const range = { min: Infinity, max: -Infinity }
+    let proj: number
+    for (let j = 0; j < vertices.length; j += 2) {
+      proj = vertices[j]! * axisNorm.x + vertices[j + 1]! * axisNorm.y
+      range.min = Math.min(range.min, proj)
+      range.max = Math.max(range.max, proj)
+    }
+    return range
+  }
+
+  private getProjectionAxis(vertices: number[], i: number): Vector {
+    return new Vector(
+      vertices[(i + 3) % vertices.length]! - vertices[i + 1]!,
+      vertices[i]! - vertices[(i + 2) % vertices.length]!,
+    ).normalize()
   }
 }
 
@@ -130,15 +140,15 @@ export class RectangleCS extends CollisionShape {
     }
   }
 
-  collidesRectangle(rectangle: RectangleCS): boolean {
+  testRectangleCollision(rectangle: RectangleCS): boolean {
     if (this.isRotated || rectangle.isRotated) {
-      return this.collidesPolygon(rectangle as PolygonCS)
+      return this.testShapeCollision(rectangle)
     } else {
       return testForAABBV(this.aabb, rectangle.aabb)
     }
   }
-  collidesCircle(circle: CircleCS): boolean {
-    return testForAABBV(this.aabb, circle.aabb) // TODO
+  testCircleCollision(circle: CircleCS): boolean {
+    return circle.testShapeCollision(this)
   }
 }
 
@@ -158,30 +168,58 @@ export class CircleCS extends CollisionShape {
     this.aabb[3] = this.aabb[1] + 2 * this.r
   }
 
-  collidesRectangle(rectangle: RectangleCS): boolean {
-    return testForAABBV(this.aabb, rectangle.aabb)
+  testRectangleCollision(rectangle: RectangleCS): boolean {
+    return this.testShapeCollision(rectangle)
   }
-  collidesCircle(circle: CircleCS): boolean {
+  testCircleCollision(circle: CircleCS): boolean {
     return distanceSquared(this.position, circle.position) < Math.pow(this.r + circle.r, 2)
   }
-  collidesPolygon(polygon: PolygonCS): boolean {
-    return false
+  testShapeCollision(other: CollisionShape): boolean {
+    const cAxis = this.getAxisAtClosestVertex(other.vertices)
+    const cPR = this.getSingleProjectionRange(cAxis)
+    const oPR = this.getProjectionRange(other.vertices, cAxis)
+
+    return (
+      cPR.min <= oPR.max &&
+      oPR.min <= cPR.max &&
+      this.testProjectionOverlap(other.vertices, (axis) => this.getSingleProjectionRange(axis))
+    )
   }
 
   createDebugGraphics(): Graphics {
     return new Graphics().circle(this.x, this.y, this.r).stroke({ width: 1, color: 0x00ffff })
   }
+
+  private getAxisAtClosestVertex(vertices: number[]): Vector {
+    const v = new Vector()
+    let dSqrd = -Infinity
+    let closestIndex = -1
+    for (let i = 0; i < vertices.length; i += 2) {
+      v.x = vertices[i]! - this.position.x
+      v.y = vertices[i + 1]! - this.position.y
+
+      const mSqrd = v.magnitudeSquared()
+      if (mSqrd < dSqrd) {
+        closestIndex = i
+        dSqrd = mSqrd
+      }
+    }
+    return v.normalize()
+  }
+
+  private getSingleProjectionRange(axis: Vector): Range {
+    const dot = axis.x * this.position.x + axis.y * this.position.y
+
+    return { min: dot - this.r, max: dot + this.r }
+  }
 }
 
 export class PolygonCS extends CollisionShape {
-  collidesCircle(circle: CircleCS): boolean {
-    return false
+  testRectangleCollision(rectangle: RectangleCS): boolean {
+    return this.testShapeCollision(rectangle)
   }
-  collidesRectangle(rectangle: RectangleCS): boolean {
-    return false
-  }
-  collidesPolygon(polygon: PolygonCS): boolean {
-    return true
+  testCircleCollision(circle: CircleCS): boolean {
+    return circle.testShapeCollision(this)
   }
 }
 
@@ -200,6 +238,9 @@ export class Collider<Shape extends CollisionShape> extends Component {
   static circle(x: number, y: number, r: number) {
     return new Collider(new CircleCS(x, y, r))
   }
+  static polygon(...points: number[]) {
+    return new Collider(new PolygonCS(points))
+  }
 
   update(worldPos: PointData, rotation: number): void {
     this.shape.position.copyFrom(worldPos)
@@ -209,6 +250,6 @@ export class Collider<Shape extends CollisionShape> extends Component {
   }
 
   collides<T extends CollisionShape>(other: Collider<T>): boolean {
-    return this.shape.collides(other.shape)
+    return testForAABBV(this.aabb, other.aabb) && this.shape.testCollision(other.shape)
   }
 }

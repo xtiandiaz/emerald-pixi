@@ -1,8 +1,7 @@
 import { System, type SignalBus, type World } from '../core'
-import { CircleCS, Collider } from '../components'
+import { Collider } from '../components'
 import { CollisionSignal } from '../signals'
 import type { HUD } from '../ui'
-import { Graphics } from 'pixi.js'
 
 export class CollisionSystem extends System {
   init(world: World, hud: HUD, sb: SignalBus): void {
@@ -25,7 +24,7 @@ export class CollisionSystem extends System {
 
         if (cA.collides(cB)) {
           // sb.emit(new CollisionSignal(eA.id, eB.id))
-          console.log('collide!')
+          console.log('collision')
         }
       }
     }
