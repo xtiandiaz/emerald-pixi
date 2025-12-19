@@ -39,12 +39,11 @@ export class PhysicsSystem extends System {
     const ecs = world.getEntitiesWithComponent(RigidBody).filter(({ c }) => !c.isStatic)
 
     for (const { e, c } of ecs) {
-      const fX = c.force.x + c.gravity.x * this.options.gravityScale
-      const fY = c.force.y + c.gravity.y * this.options.gravityScale
-      c.force.set(0, 0)
+      c.force.x = (c.force.x + c.gravity.x * this.options.gravityScale) * 0.5
+      c.force.y = (c.force.y + c.gravity.y * this.options.gravityScale) * 0.5
 
-      const aX = fX / c.mass
-      const aY = fY / c.mass
+      const aX = c.force.x / c.mass
+      const aY = c.force.y / c.mass
 
       const halfDtSqrd = 0.5 * dt * dt
       c.velocity.set(c.velocity.x + aX * halfDtSqrd, c.velocity.y + aY * halfDtSqrd)

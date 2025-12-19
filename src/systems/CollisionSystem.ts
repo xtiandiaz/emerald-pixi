@@ -1,5 +1,5 @@
 import { System, type SignalBus, type World } from '../core'
-import { Collider } from '../components'
+import { Collider, RigidBody } from '../components'
 import { CollisionSignal } from '../signals'
 import type { HUD } from '../ui'
 
@@ -22,9 +22,17 @@ export class CollisionSystem extends System {
         cA.update(eA.position, eA.rotation)
         cB.update(eB.position, eB.rotation)
 
-        if (cA.collides(cB)) {
-          // sb.emit(new CollisionSignal(eA.id, eB.id))
-          console.log('collision')
+        const col = cA.getCollision(cB)
+        if (!col) {
+          continue
+        }
+        const rbA = eA.getComponent(RigidBody)
+        if (rbA) {
+          rbA.force.set(rbA.force.x - col.direction.x, rbA.force.y - col.direction.y)
+        }
+        const rbB = eB.getComponent(RigidBody)
+        if (rbB) {
+          rbB.force.set(rbB.force.x + col.direction.x, rbB.force.y + col.direction.y)
         }
       }
     }

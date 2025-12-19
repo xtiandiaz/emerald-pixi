@@ -1,6 +1,11 @@
 import { Graphics, type PointData } from 'pixi.js'
 import { Component, distanceSquared, testForAABBV, Vector, type Range } from '../core'
 
+export interface Collision {
+  direction: Vector
+  distance: number
+}
+
 export abstract class CollisionShape {
   readonly position = new Vector()
   readonly vertices: number[]
@@ -46,7 +51,7 @@ export abstract class CollisionShape {
     }
   }
 
-  testCollision<T extends CollisionShape>(other: T): boolean {
+  testCollision<T extends CollisionShape>(other: T): Collision | undefined {
     if (other instanceof RectangleCS) {
       return this.testRectangleCollision(other)
     } else if (other instanceof CircleCS) {
@@ -55,17 +60,20 @@ export abstract class CollisionShape {
       return this.testShapeCollision(other)
     } else {
       console.error('Not implemented!')
-      return false
     }
   }
-  abstract testRectangleCollision(rectangle: RectangleCS): boolean
-  abstract testCircleCollision(circle: CircleCS): boolean
+  abstract testRectangleCollision(rectangle: RectangleCS): Collision | undefined
+  abstract testCircleCollision(circle: CircleCS): Collision | undefined
 
-  testShapeCollision(other: CollisionShape): boolean {
-    return (
-      this.testVerticesProjectionOverlap(this.vertices, other.vertices) &&
-      this.testVerticesProjectionOverlap(other.vertices, this.vertices)
-    )
+  testShapeCollision(other: CollisionShape): Collision | undefined {
+    const pColAB = this.testPossibleCollisionWithVertices(this.vertices, other.vertices)
+    let pColBA: Collision | undefined
+    if (pColAB) {
+      pColBA = this.testPossibleCollisionWithVertices(other.vertices, this.vertices)
+    }
+    if (pColAB && pColBA) {
+      return pColAB.distance < pColBA.distance ? pColAB : pColBA
+    }
   }
 
   createDebugGraphics(): Graphics {
@@ -75,20 +83,37 @@ export abstract class CollisionShape {
   /* 
     Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/ 
   */
-  protected testVerticesProjectionOverlap(verticesA: number[], verticesB: number[]) {
-    return this.testProjectionOverlap(verticesA, (axis) => this.getProjectionRange(verticesB, axis))
+  protected testPossibleCollisionWithVertices(
+    verticesA: number[],
+    verticesB: number[],
+  ): Collision | undefined {
+    return this.testPossibleCollisionWithRangeProvider(verticesA, (axis) =>
+      this.getProjectionRange(verticesB, axis),
+    )
   }
-  protected testProjectionOverlap(verticesA: number[], getRangeB: (axis: Vector) => Range) {
+  protected testPossibleCollisionWithRangeProvider(
+    verticesA: number[],
+    getRangeB: (axis: Vector) => Range,
+  ): Collision | undefined {
+    const col: Collision = {
+      direction: new Vector(),
+      distance: Infinity,
+    }
     for (let i = 0; i < verticesA.length; i += 2) {
       const axis = this.getProjectionAxis(verticesA, i)
       const pRangeA = this.getProjectionRange(verticesA, axis)
       const pRangeB = getRangeB(axis)
 
       if (pRangeB.max < pRangeA.min || pRangeA.max < pRangeB.min) {
-        return false
+        return undefined
+      }
+      const pDist = Math.abs(pRangeB.max - pRangeA.min)
+      if (pDist < col.distance) {
+        col.distance = pDist
+        col.direction = axis.multiplyScalar(-1)
       }
     }
-    return true
+    return col
   }
 
   protected getProjectionRange(vertices: number[], axisNorm: Vector): Range {
@@ -140,14 +165,14 @@ export class RectangleCS extends CollisionShape {
     }
   }
 
-  testRectangleCollision(rectangle: RectangleCS): boolean {
+  testRectangleCollision(rectangle: RectangleCS): Collision | undefined {
     if (this.isRotated || rectangle.isRotated) {
       return this.testShapeCollision(rectangle)
-    } else {
+    } /*  else {
       return testForAABBV(this.aabb, rectangle.aabb)
-    }
+    } */
   }
-  testCircleCollision(circle: CircleCS): boolean {
+  testCircleCollision(circle: CircleCS): Collision | undefined {
     return circle.testShapeCollision(this)
   }
 }
@@ -168,22 +193,28 @@ export class CircleCS extends CollisionShape {
     this.aabb[3] = this.aabb[1] + 2 * this.r
   }
 
-  testRectangleCollision(rectangle: RectangleCS): boolean {
+  testRectangleCollision(rectangle: RectangleCS): Collision | undefined {
     return this.testShapeCollision(rectangle)
   }
-  testCircleCollision(circle: CircleCS): boolean {
-    return distanceSquared(this.position, circle.position) < Math.pow(this.r + circle.r, 2)
+  testCircleCollision(circle: CircleCS): Collision | undefined {
+    if (distanceSquared(this.position, circle.position) < Math.pow(this.r + circle.r, 2)) {
+      return {
+        distance: this.r + circle.r,
+        direction: new Vector(circle.x - this.x, circle.y - this.y),
+      }
+    }
+    return undefined
   }
-  testShapeCollision(other: CollisionShape): boolean {
+  testShapeCollision(other: CollisionShape): Collision | undefined {
     const cAxis = this.getAxisAtClosestVertex(other.vertices)
     const cPR = this.getSingleProjectionRange(cAxis)
     const oPR = this.getProjectionRange(other.vertices, cAxis)
 
-    return (
-      cPR.min <= oPR.max &&
-      oPR.min <= cPR.max &&
-      this.testProjectionOverlap(other.vertices, (axis) => this.getSingleProjectionRange(axis))
-    )
+    if (cPR.min <= oPR.max && oPR.min <= cPR.max) {
+      return this.testPossibleCollisionWithRangeProvider(other.vertices, (axis) =>
+        this.getSingleProjectionRange(axis),
+      )
+    }
   }
 
   createDebugGraphics(): Graphics {
@@ -215,10 +246,10 @@ export class CircleCS extends CollisionShape {
 }
 
 export class PolygonCS extends CollisionShape {
-  testRectangleCollision(rectangle: RectangleCS): boolean {
+  testRectangleCollision(rectangle: RectangleCS): Collision | undefined {
     return this.testShapeCollision(rectangle)
   }
-  testCircleCollision(circle: CircleCS): boolean {
+  testCircleCollision(circle: CircleCS): Collision | undefined {
     return circle.testShapeCollision(this)
   }
 }
@@ -249,7 +280,9 @@ export class Collider<Shape extends CollisionShape> extends Component {
     this.shape.update()
   }
 
-  collides<T extends CollisionShape>(other: Collider<T>): boolean {
-    return testForAABBV(this.aabb, other.aabb) && this.shape.testCollision(other.shape)
+  getCollision<T extends CollisionShape>(other: Collider<T>): Collision | undefined {
+    if (testForAABBV(this.aabb, other.aabb)) {
+      return this.shape.testCollision(other.shape)
+    }
   }
 }
