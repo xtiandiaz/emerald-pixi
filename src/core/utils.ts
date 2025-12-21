@@ -39,6 +39,6 @@ export const distanceSquared = (a: Point, b: Point) => {
 export function testForAABB(a: Bounds, b: Bounds): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 }
-export function testForAABBV(a: number[], b: number[]): boolean {
+export function testForAABBWithDiagonalVertices(a: number[], b: number[]): boolean {
   return !(a[0]! > b[2]! || a[2]! < b[0]! || a[1]! > b[3]! || a[3]! < b[1]!)
 }

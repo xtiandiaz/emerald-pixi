@@ -1,36 +1,61 @@
 import * as PIXI from 'pixi.js'
-import gsap from 'gsap'
+import GSAP from 'gsap'
 import PixiPlugin from 'gsap/PixiPlugin'
 
-export type Ease = gsap.EaseString | gsap.EaseFunction
+// export type Ease = gsap.EaseString | gsap.EaseFunction
+
+// declare namespace GSAP {
+//   interface Timeline {
+//     pixiTo: (
+//       target: PIXI.Container,
+//       vars: PixiPlugin.Vars,
+//       ease: Ease,
+//       duration: number,
+//     ) => gsap.core.Tween
+//   }
+// }
+
+// GSAP.core.Timeline.prototype.pixiTo = function (this) {}
+
+export interface PixiTweenParams extends gsap.TweenVars {
+  vars: PixiPlugin.Vars
+  startVars?: PixiPlugin.Vars
+}
 
 export class Tweener {
-  private static _main?: Tweener
+  private static sharedInstance?: Tweener
 
-  private constructor() {
-    gsap.registerPlugin(PixiPlugin)
+  constructor() {
+    GSAP.registerPlugin(PixiPlugin)
     PixiPlugin.registerPIXI(PIXI)
   }
 
-  static get main(): Tweener {
-    if (this._main == undefined) {
-      this._main = new Tweener()
+  static get shared(): Tweener {
+    if (!this.sharedInstance) {
+      this.sharedInstance = new Tweener()
     }
-
-    return this._main
+    return this.sharedInstance
   }
 
-  to(target: PIXI.Container, vars: PixiPlugin.Vars, ease: Ease, duration: number) {
-    return gsap.to(target, { pixi: vars, ease, duration })
+  timeline(): gsap.core.Timeline {
+    return GSAP.timeline()
   }
 
-  async toAsync(target: PIXI.Container, vars: PixiPlugin.Vars, ease: Ease, duration: number) {
-    const tw = gsap.to(target, { pixi: vars, ease, duration })
+  to(target: PIXI.Container, params: PixiTweenParams) {
+    return GSAP.to(target, { pixi: params.vars, startAt: { pixi: params.startVars }, ...params })
+  }
+
+  async toAsync(target: PIXI.Container, params: PixiTweenParams) {
+    const tw = this.to(target, params)
 
     return new Promise<gsap.core.Tween>((resolve) => {
       tw.vars.onComplete = () => {
         resolve(tw)
       }
     })
+  }
+
+  killTweensOf(target: PIXI.Container) {
+    GSAP.killTweensOf(target)
   }
 }

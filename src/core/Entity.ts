@@ -1,6 +1,5 @@
 import { Container } from 'pixi.js'
-import { Component, type SomeComponent } from '.'
-import { Body } from 'matter-js'
+import { Component, Tweener, type SomeComponent } from '.'
 
 export class Entity extends Container {
   readonly id: number
@@ -13,17 +12,18 @@ export class Entity extends Container {
     this.id = ++Entity.nextId
   }
 
+  start?(): void
+
+  stop() {
+    Tweener.shared.killTweensOf(this)
+  }
+
   addComponent<T extends Component>(c: T): T {
     this.components.set(c.constructor.name, c)
-    c.init?.(this)
     return c
   }
 
   removeComponent<T extends Component>(type: SomeComponent<T>): boolean {
-    const c = this.getComponent(type)
-    if (c) {
-      c.deinit?.()
-    }
     return this.components.delete(type.name)
   }
 

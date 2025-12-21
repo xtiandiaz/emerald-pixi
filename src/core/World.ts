@@ -17,6 +17,8 @@ export class World extends Container {
       this.addChild(e)
 
       this.onEntityAdded?.(e.id)
+
+      e.start?.()
     }
     return this
   }
@@ -46,6 +48,9 @@ export class World extends Container {
       return
     }
     this.entities.delete(id)
+
+    e.stop()
+
     this.removeChild(e)
     this.removedEntities.set(id, e)
 

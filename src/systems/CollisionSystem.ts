@@ -1,14 +1,26 @@
 import { System, type SignalBus, type World } from '../core'
-import { Collider, RigidBody } from '../components'
+import { Collider } from '../components'
 import { CollisionSignal } from '../signals'
 import type { HUD } from '../ui'
 
 export class CollisionSystem extends System {
-  init(world: World, hud: HUD, sb: SignalBus): void {
-    const ecs = world.getEntitiesWithComponent(Collider)
-    for (const { e, c } of ecs) {
-      e.addChild(c.shape.createDebugGraphics())
-    }
+  protected ongoingCollisions = new Map<number, Set<number>>()
+
+  constructor(protected layerMap: Map<number, number>) {
+    super()
+  }
+
+  // init(world: World, hud: HUD, sb: SignalBus): void {
+  //   const ecs = world.getEntitiesWithComponent(Collider)
+  //   for (const { e, c } of ecs) {
+  //     e.addChild(c.createDebugGraphics())
+  //   }
+  // }
+
+  deinit(): void {
+    super.deinit()
+
+    this.ongoingCollisions.clear()
   }
 
   update(world: World, sb: SignalBus, dt: number): void {
@@ -22,17 +34,18 @@ export class CollisionSystem extends System {
         cA.update(eA.position, eA.rotation)
         cB.update(eB.position, eB.rotation)
 
-        const col = cA.getCollision(cB)
-        if (!col) {
-          continue
-        }
-        const rbA = eA.getComponent(RigidBody)
-        if (rbA) {
-          rbA.force.set(rbA.force.x - col.direction.x, rbA.force.y - col.direction.y)
-        }
-        const rbB = eB.getComponent(RigidBody)
-        if (rbB) {
-          rbB.force.set(rbB.force.x + col.direction.x, rbB.force.y + col.direction.y)
+        const areMeantToCollide =
+          ((this.layerMap.get(cA.layer) ?? 0) && cB.layer) ||
+          ((this.layerMap.get(cB.layer) ?? 0) && cA.layer)
+
+        if (areMeantToCollide && cA.testForCollision(cB)) {
+          if (!this.ongoingCollisions.has(eA.id) && !this.ongoingCollisions.has(eB.id)) {
+            this.ongoingCollisions.set(eA.id, new Set([eB.id]))
+            sb.queue(new CollisionSignal(eA.id, eB.id))
+          }
+        } else {
+          this.ongoingCollisions.delete(eA.id)
+          this.ongoingCollisions.delete(eB.id)
         }
       }
     }
