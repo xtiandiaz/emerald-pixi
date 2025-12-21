@@ -2,25 +2,24 @@ import { Container } from 'pixi.js'
 import { Component, Tweener, type SomeComponent } from '.'
 
 export class Entity extends Container {
-  readonly id: number
-  private static nextId = 0
   private components = new Map<string, Component>()
 
-  constructor() {
+  constructor(
+    public readonly id: number,
+    public readonly tag?: string,
+  ) {
     super()
-
-    this.id = ++Entity.nextId
   }
 
-  start?(): void
+  // start?(): void
 
-  stop() {
-    Tweener.shared.killTweensOf(this)
-  }
+  // stop() {
+  //   Tweener.shared.killTweensOf(this)
+  // }
 
-  addComponent<T extends Component>(c: T): T {
+  addComponent<T extends Component>(c: T): Entity {
     this.components.set(c.constructor.name, c)
-    return c
+    return this
   }
 
   removeComponent<T extends Component>(type: SomeComponent<T>): boolean {

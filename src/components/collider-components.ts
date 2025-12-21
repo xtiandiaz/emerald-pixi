@@ -12,7 +12,7 @@ export interface Collision {
   distance: number
 }
 
-export abstract class CollisionShape {
+export abstract class ColliderShape {
   readonly position = new Vector()
   readonly vertices: number[]
   readonly aabb: number[] = Array(4).fill(0)
@@ -24,10 +24,20 @@ export abstract class CollisionShape {
     this.isRotated = val != 0
   }
 
-  constructor(protected readonly points: number[]) {
+  protected constructor(protected readonly points: number[]) {
     this.vertices = [...points]
 
     this.updateVertices()
+  }
+
+  static rectangle(x: number, y: number, w: number, h: number) {
+    return new RectangleColliderShape(x, y, w, h)
+  }
+  static circle(x: number, y: number, r: number) {
+    return new CircleColliderShape(x, y, r)
+  }
+  static polygon(...points: number[]) {
+    return new PolygonColliderShape(points)
   }
 
   updateVertices(): void {
@@ -57,28 +67,28 @@ export abstract class CollisionShape {
     }
   }
 
-  testForCollision<T extends CollisionShape>(other: T): boolean {
+  testForCollision<T extends ColliderShape>(other: T): boolean {
     if (!testForAABBWithDiagonalVertices(this.aabb, other.aabb)) {
       return false
     }
-    if (other instanceof RectangleCS) {
+    if (other instanceof RectangleColliderShape) {
       return this.testForCollisionWithRectangle(other)
-    } else if (other instanceof CircleCS) {
+    } else if (other instanceof CircleColliderShape) {
       return this.testForCollisionWithCircle(other)
-    } else if (other instanceof PolygonCS) {
+    } else if (other instanceof PolygonColliderShape) {
       return this.testForCollisionWithAnyOtherShape(other)
     } else {
       console.error('Not implemented!')
       return false
     }
   }
-  abstract testForCollisionWithRectangle(rectangle: RectangleCS): boolean
-  abstract testForCollisionWithCircle(circle: CircleCS): boolean
+  abstract testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean
+  abstract testForCollisionWithCircle(circle: CircleColliderShape): boolean
 
   /*  
     "Any other shape" is limited to convex polygons.  
   */
-  testForCollisionWithAnyOtherShape(other: CollisionShape): boolean {
+  testForCollisionWithAnyOtherShape(other: ColliderShape): boolean {
     return (
       this.testForPossibleCollisionWithVertices(this.vertices, other.vertices) &&
       this.testForPossibleCollisionWithVertices(other.vertices, this.vertices)
@@ -144,7 +154,7 @@ export abstract class CollisionShape {
   }
 }
 
-export class RectangleCS extends CollisionShape {
+export class RectangleColliderShape extends ColliderShape {
   constructor(
     private x: number,
     private y: number,
@@ -174,18 +184,18 @@ export class RectangleCS extends CollisionShape {
     }
   }
 
-  testForCollisionWithRectangle(rectangle: RectangleCS): boolean {
+  testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean {
     if (this.isRotated || rectangle.isRotated) {
       return this.testForCollisionWithAnyOtherShape(rectangle)
     }
     return testForAABBWithDiagonalVertices(this.aabb, rectangle.aabb)
   }
-  testForCollisionWithCircle(circle: CircleCS): boolean {
+  testForCollisionWithCircle(circle: CircleColliderShape): boolean {
     return circle.testForCollisionWithAnyOtherShape(this)
   }
 }
 
-export class CircleCS extends CollisionShape {
+export class CircleColliderShape extends ColliderShape {
   constructor(
     private x: number,
     private y: number,
@@ -201,17 +211,17 @@ export class CircleCS extends CollisionShape {
     this.aabb[3] = this.aabb[1] + 2 * this.r
   }
 
-  testForCollisionWithRectangle(rectangle: RectangleCS): boolean {
+  testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean {
     return this.testForCollisionWithAnyOtherShape(rectangle)
   }
-  testForCollisionWithCircle(circle: CircleCS): boolean {
+  testForCollisionWithCircle(circle: CircleColliderShape): boolean {
     return distanceSquared(this.position, circle.position) < Math.pow(this.r + circle.r, 2)
     // return {
     //   distance: this.r + circle.r,
     //   direction: new Vector(circle.x - this.x, circle.y - this.y),
     // }
   }
-  testForCollisionWithAnyOtherShape(other: CollisionShape): boolean {
+  testForCollisionWithAnyOtherShape(other: ColliderShape): boolean {
     const cAxis = this.getAxisAtClosestVertex(other.vertices)
     const cPR = this.getSingleProjectionRange(cAxis)
     const oPR = this.getProjectionRange(other.vertices, cAxis)
@@ -253,30 +263,21 @@ export class CircleCS extends CollisionShape {
   }
 }
 
-export class PolygonCS extends CollisionShape {
-  testForCollisionWithRectangle(rectangle: RectangleCS): boolean {
+export class PolygonColliderShape extends ColliderShape {
+  testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean {
     return this.testForCollisionWithAnyOtherShape(rectangle)
   }
-  testForCollisionWithCircle(circle: CircleCS): boolean {
+  testForCollisionWithCircle(circle: CircleColliderShape): boolean {
     return circle.testForCollisionWithAnyOtherShape(this)
   }
 }
 
-export class Collider<Shape extends CollisionShape> extends Component {
-  layer = 0
-
-  constructor(protected shape: Shape) {
+export class Collider<Shape extends ColliderShape> extends Component {
+  constructor(
+    protected shape: Shape,
+    public layer: number,
+  ) {
     super()
-  }
-
-  static rectangle(x: number, y: number, w: number, h: number) {
-    return new Collider(new RectangleCS(x, y, w, h))
-  }
-  static circle(x: number, y: number, r: number) {
-    return new Collider(new CircleCS(x, y, r))
-  }
-  static polygon(...points: number[]) {
-    return new Collider(new PolygonCS(points))
   }
 
   update(worldPos: PointData, rotation: number): void {
@@ -286,7 +287,7 @@ export class Collider<Shape extends CollisionShape> extends Component {
     this.shape.updateVertices()
   }
 
-  testForCollision<T extends CollisionShape>(other: Collider<T>): boolean {
+  testForCollision<T extends ColliderShape>(other: Collider<T>): boolean {
     return this.shape.testForCollision(other.shape)
   }
 

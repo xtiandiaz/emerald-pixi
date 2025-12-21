@@ -1,3 +1,5 @@
+import { Graphics } from 'pixi.js'
+
 export abstract class Component {
   readonly key: string
 
