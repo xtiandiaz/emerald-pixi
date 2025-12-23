@@ -1,5 +1,6 @@
-import { Container } from 'pixi.js'
-import { Component, Tweener, type SomeComponent } from '.'
+import { Container, type ContainerChild } from 'pixi.js'
+import { Component, type SomeComponent } from '.'
+import { ContainerChildComponent } from '../components/ContainerChildComponent'
 
 export class Entity extends Container {
   private components = new Map<string, Component>()
@@ -11,15 +12,15 @@ export class Entity extends Container {
     super()
   }
 
-  // start?(): void
-
-  // stop() {
-  //   Tweener.shared.killTweensOf(this)
-  // }
-
-  addComponent<T extends Component>(c: T): Entity {
-    this.components.set(c.constructor.name, c)
+  addComponent<T extends Component>(component: T): Entity {
+    this.components.set(component.constructor.name, component)
     return this
+  }
+  addContainerChildComponent<T extends ContainerChildComponent<U>, U extends ContainerChild>(
+    component: T,
+  ): Entity {
+    this.addChild(component.body)
+    return this.addComponent(component)
   }
 
   removeComponent<T extends Component>(type: SomeComponent<T>): boolean {

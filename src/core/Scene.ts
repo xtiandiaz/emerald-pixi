@@ -1,4 +1,4 @@
-import { Rectangle } from 'pixi.js'
+import { Assets, Rectangle } from 'pixi.js'
 import { World, System, Screen, type Disconnectable, type SignalBus } from './'
 import { ScreenResizeSignal } from '../signals'
 import { HUD } from '../ui'
@@ -27,6 +27,8 @@ export abstract class Scene {
   }
 
   deinit(): void {
+    Assets.reset()
+
     this.connections.forEach((c) => c.disconnect())
     this.systems.forEach((s) => s.deinit?.())
   }

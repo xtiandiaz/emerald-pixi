@@ -1,6 +1,7 @@
 export * from './components'
 export * from './controllers'
 export * from './core'
+export * from './graphics'
 export * from './game'
 export * from './input'
 export * from './signals'
