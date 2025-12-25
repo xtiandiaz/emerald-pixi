@@ -1,60 +1,110 @@
-import { Graphics, type PointData } from 'pixi.js'
+import { Graphics, Point, type PointData } from 'pixi.js'
+import { Component, distanceSquared, Vector, type Range } from '../core'
 import {
-  Component,
-  distanceSquared,
+  getCircleProjectionRange,
+  getPolygonProjectionRange,
   testForAABBWithDiagonalVertices,
-  Vector,
-  type Range,
-} from '../core'
-
-export interface Collision {
-  direction: Vector
-  distance: number
-}
+  testForCollisionWithRangeProvider,
+  testForCollisionWithVertices,
+  type CollisionResult,
+} from '../collision'
 
 export abstract class ColliderShape {
-  readonly position = new Vector()
   readonly vertices: number[]
   readonly aabb: number[] = Array(4).fill(0)
 
-  protected _rotation = 0
+  protected readonly _pos = new Point()
+
+  protected _rot = 0
   protected isRotated = false
-  set rotation(val: number) {
-    this._rotation = val
-    this.isRotated = val != 0
+  get rotation(): number {
+    return this._rot
   }
+  set rotation(val: number) {
+    this._rot = val
+    this.isRotated = val != 0
+    this.shouldUpdateVertices = true
+  }
+  private shouldUpdateVertices = true
 
   protected constructor(protected readonly points: number[]) {
     this.vertices = [...points]
-
-    this.updateVertices()
   }
 
-  static rectangle(x: number, y: number, w: number, h: number) {
-    return new RectangleColliderShape(x, y, w, h)
+  static rectangle(cX: number, cY: number, w: number, h: number) {
+    return new RectangleColliderShape(cX, cY, w, h)
   }
-  static circle(x: number, y: number, r: number) {
-    return new CircleColliderShape(x, y, r)
+  static circle(cX: number, cY: number, r: number) {
+    return new CircleColliderShape(cX, cY, r)
   }
   static polygon(...points: number[]) {
     return new PolygonColliderShape(points)
   }
 
-  updateVertices(): void {
+  setPosition(x: number, y: number) {
+    this._pos.set(x, y)
+    this.shouldUpdateVertices = true
+  }
+
+  testForCollision<T extends ColliderShape>(other: T): CollisionResult | undefined {
+    if (this.shouldUpdateVertices) {
+      this.updateVertices()
+    }
+    if (other.shouldUpdateVertices) {
+      other.updateVertices()
+    }
+    if (!testForAABBWithDiagonalVertices(this.aabb, other.aabb)) {
+      return undefined
+    }
+    if (other instanceof RectangleColliderShape) {
+      return this.testForCollisionWithRectangle(other)
+    } else if (other instanceof CircleColliderShape) {
+      return this.testForCollisionWithCircle(other)
+    } else if (other instanceof PolygonColliderShape) {
+      return this.testForCollisionWithAnyOtherShape(other)
+    } else {
+      console.error('Not implemented!')
+    }
+  }
+  abstract testForCollisionWithRectangle(
+    rectangle: RectangleColliderShape,
+  ): CollisionResult | undefined
+  abstract testForCollisionWithCircle(circle: CircleColliderShape): CollisionResult | undefined
+
+  /*  
+    "Any other shape" is limited to convex polygons.  
+  */
+  testForCollisionWithAnyOtherShape(other: ColliderShape): CollisionResult | undefined {
+    const cAB = testForCollisionWithVertices(this.vertices, other.vertices)
+    if (!cAB) {
+      return undefined
+    }
+    const cBA = testForCollisionWithVertices(other.vertices, this.vertices)
+    if (!cBA) {
+      return undefined
+    }
+    return cAB.penetration < cBA.penetration ? cAB : cBA
+  }
+
+  createDebugGraphics(): Graphics {
+    return new Graphics().poly(this.points).stroke({ width: 1, color: 0x00ffff })
+  }
+
+  protected updateVertices(): void {
     let minX = Infinity
     let maxX = -Infinity
     let minY = Infinity
     let maxY = -Infinity
 
     for (let i = 0; i < this.points.length; i += 2) {
-      const cos = Math.cos(this._rotation)
-      const sin = Math.sin(this._rotation)
+      const cos = Math.cos(this._rot)
+      const sin = Math.sin(this._rot)
       const x = this.points[i]!
       const y = this.points[i + 1]!
 
       // Rotation matrix: https://en.wikipedia.org/wiki/Rotation_matrix
-      this.vertices[i] = x * cos - y * sin + this.position.x
-      this.vertices[i + 1] = x * sin + y * cos + this.position.y
+      this.vertices[i] = x * cos - y * sin + this._pos.x
+      this.vertices[i + 1] = x * sin + y * cos + this._pos.y
       minX = Math.min(minX, this.vertices[i]!)
       maxX = Math.max(maxX, this.vertices[i]!)
       minY = Math.min(minY, this.vertices[i + 1]!)
@@ -65,111 +115,26 @@ export abstract class ColliderShape {
       this.aabb[2] = maxX
       this.aabb[3] = maxY
     }
-  }
-
-  testForCollision<T extends ColliderShape>(other: T): boolean {
-    if (!testForAABBWithDiagonalVertices(this.aabb, other.aabb)) {
-      return false
-    }
-    if (other instanceof RectangleColliderShape) {
-      return this.testForCollisionWithRectangle(other)
-    } else if (other instanceof CircleColliderShape) {
-      return this.testForCollisionWithCircle(other)
-    } else if (other instanceof PolygonColliderShape) {
-      return this.testForCollisionWithAnyOtherShape(other)
-    } else {
-      console.error('Not implemented!')
-      return false
-    }
-  }
-  abstract testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean
-  abstract testForCollisionWithCircle(circle: CircleColliderShape): boolean
-
-  /*  
-    "Any other shape" is limited to convex polygons.  
-  */
-  testForCollisionWithAnyOtherShape(other: ColliderShape): boolean {
-    return (
-      this.testForPossibleCollisionWithVertices(this.vertices, other.vertices) &&
-      this.testForPossibleCollisionWithVertices(other.vertices, this.vertices)
-    )
-  }
-
-  createDebugGraphics(): Graphics {
-    return new Graphics().poly(this.points).stroke({ width: 1, color: 0x00ffff })
-  }
-
-  /* 
-    Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/ 
-  */
-  protected testForPossibleCollisionWithVertices(
-    verticesA: number[],
-    verticesB: number[],
-  ): boolean {
-    return this.testPossibleCollisionWithRangeProvider(verticesA, (axis) =>
-      this.getProjectionRange(verticesB, axis),
-    )
-  }
-  protected testPossibleCollisionWithRangeProvider(
-    verticesA: number[],
-    getRangeB: (axis: Vector) => Range,
-  ): boolean {
-    // const col: Collision = {
-    //   direction: new Vector(),
-    //   distance: Infinity,
-    // }
-    for (let i = 0; i < verticesA.length; i += 2) {
-      const axis = this.getProjectionAxis(verticesA, i)
-      const pRangeA = this.getProjectionRange(verticesA, axis)
-      const pRangeB = getRangeB(axis)
-
-      if (pRangeB.max < pRangeA.min || pRangeA.max < pRangeB.min) {
-        return false
-      }
-      // const pDist = Math.abs(pRangeB.max - pRangeA.min)
-      // if (pDist < col.distance) {
-      //   col.distance = pDist
-      //   col.direction = axis.multiplyScalar(-1)
-      // }
-    }
-    return true
-  }
-
-  protected getProjectionRange(vertices: number[], axisNorm: Vector): Range {
-    const range = { min: Infinity, max: -Infinity }
-    let proj: number
-    for (let j = 0; j < vertices.length; j += 2) {
-      proj = vertices[j]! * axisNorm.x + vertices[j + 1]! * axisNorm.y
-      range.min = Math.min(range.min, proj)
-      range.max = Math.max(range.max, proj)
-    }
-    return range
-  }
-
-  private getProjectionAxis(vertices: number[], i: number): Vector {
-    return new Vector(
-      vertices[(i + 3) % vertices.length]! - vertices[i + 1]!,
-      vertices[i]! - vertices[(i + 2) % vertices.length]!,
-    ).normalize()
+    this.shouldUpdateVertices = false
   }
 }
 
 export class RectangleColliderShape extends ColliderShape {
   constructor(
-    private x: number,
-    private y: number,
+    private cX: number,
+    private cY: number,
     public w: number,
     public h: number,
   ) {
-    super([x, y, x + w, y, x + w, y + h, x, y + h])
+    super([cX, cY, cX + w, cY, cX + w, cY + h, cX, cY + h])
   }
 
   updateVertices(): void {
-    if (this._rotation != 0) {
+    if (this._rot != 0) {
       super.updateVertices()
     } else {
-      this.aabb[0] = this.x + this.position.x
-      this.aabb[1] = this.y + this.position.y
+      this.aabb[0] = this.cX + this._pos.x
+      this.aabb[1] = this.cY + this._pos.y
       this.aabb[2] = this.aabb[0] + this.w
       this.aabb[3] = this.aabb[1] + this.h
 
@@ -184,59 +149,64 @@ export class RectangleColliderShape extends ColliderShape {
     }
   }
 
-  testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean {
-    if (this.isRotated || rectangle.isRotated) {
-      return this.testForCollisionWithAnyOtherShape(rectangle)
-    }
-    return testForAABBWithDiagonalVertices(this.aabb, rectangle.aabb)
+  testForCollisionWithRectangle(rectangle: RectangleColliderShape): CollisionResult | undefined {
+    // if (this.isRotated || rectangle.isRotated) {
+    return this.testForCollisionWithAnyOtherShape(rectangle)
+    // } else {
+    //   return testForAABBWithDiagonalVertices(this.aabb, rectangle.aabb)
+    // }
   }
-  testForCollisionWithCircle(circle: CircleColliderShape): boolean {
+  testForCollisionWithCircle(circle: CircleColliderShape): CollisionResult | undefined {
     return circle.testForCollisionWithAnyOtherShape(this)
   }
 }
 
 export class CircleColliderShape extends ColliderShape {
   constructor(
-    private x: number,
-    private y: number,
+    private cX: number,
+    private cY: number,
     public r: number,
   ) {
     super([])
   }
 
   updateVertices(): void {
-    this.aabb[0] = this.x + this.position.x - this.r
-    this.aabb[1] = this.y + this.position.y - this.r
+    this.aabb[0] = this.cX + this._pos.x - this.r
+    this.aabb[1] = this.cY + this._pos.y - this.r
     this.aabb[2] = this.aabb[0] + 2 * this.r
     this.aabb[3] = this.aabb[1] + 2 * this.r
   }
 
-  testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean {
+  testForCollisionWithRectangle(rectangle: RectangleColliderShape): CollisionResult | undefined {
     return this.testForCollisionWithAnyOtherShape(rectangle)
   }
-  testForCollisionWithCircle(circle: CircleColliderShape): boolean {
-    return distanceSquared(this.position, circle.position) < Math.pow(this.r + circle.r, 2)
-    // return {
-    //   distance: this.r + circle.r,
-    //   direction: new Vector(circle.x - this.x, circle.y - this.y),
-    // }
+  testForCollisionWithCircle(circle: CircleColliderShape): CollisionResult | undefined {
+    if (distanceSquared(this._pos, circle._pos) < Math.pow(this.r + circle.r, 2)) {
+      return {
+        penetration: this.r + circle.r - circle._pos.subtract(this._pos).magnitude(),
+        dir: new Vector(circle.cX - this.cX, circle.cY - this.cY),
+      }
+    }
   }
-  testForCollisionWithAnyOtherShape(other: ColliderShape): boolean {
+  testForCollisionWithAnyOtherShape(other: ColliderShape): CollisionResult | undefined {
     const cAxis = this.getAxisAtClosestVertex(other.vertices)
-    const cPR = this.getSingleProjectionRange(cAxis)
-    const oPR = this.getProjectionRange(other.vertices, cAxis)
-
-    return (
-      cPR.min <= oPR.max &&
-      oPR.min <= cPR.max &&
-      this.testPossibleCollisionWithRangeProvider(other.vertices, (axis) =>
-        this.getSingleProjectionRange(axis),
-      )
+    const cPR = getCircleProjectionRange(
+      this._pos.x + this.cX,
+      this._pos.y + this.cY,
+      this.r,
+      cAxis,
     )
+    const oPR = getPolygonProjectionRange(other.vertices, cAxis)
+
+    if (cPR.min <= oPR.max && oPR.min <= cPR.max) {
+      return testForCollisionWithRangeProvider(other.vertices, (axis) =>
+        getCircleProjectionRange(this._pos.x + this.cX, this._pos.y + this.cY, this.r, axis),
+      )
+    }
   }
 
   createDebugGraphics(): Graphics {
-    return new Graphics().circle(this.x, this.y, this.r).stroke({ width: 1, color: 0x00ffff })
+    return new Graphics().circle(this.cX, this.cY, this.r).stroke({ width: 1, color: 0x00ffff })
   }
 
   private getAxisAtClosestVertex(vertices: number[]): Vector {
@@ -244,8 +214,8 @@ export class CircleColliderShape extends ColliderShape {
     let dSqrd = -Infinity
     let closestIndex = -1
     for (let i = 0; i < vertices.length; i += 2) {
-      v.x = vertices[i]! - this.position.x
-      v.y = vertices[i + 1]! - this.position.y
+      v.x = vertices[i]! - this._pos.x
+      v.y = vertices[i + 1]! - this._pos.y
 
       const mSqrd = v.magnitudeSquared()
       if (mSqrd < dSqrd) {
@@ -255,19 +225,13 @@ export class CircleColliderShape extends ColliderShape {
     }
     return v.normalize()
   }
-
-  private getSingleProjectionRange(axis: Vector): Range {
-    const dot = axis.x * this.position.x + axis.y * this.position.y
-
-    return { min: dot - this.r, max: dot + this.r }
-  }
 }
 
 export class PolygonColliderShape extends ColliderShape {
-  testForCollisionWithRectangle(rectangle: RectangleColliderShape): boolean {
+  testForCollisionWithRectangle(rectangle: RectangleColliderShape): CollisionResult | undefined {
     return this.testForCollisionWithAnyOtherShape(rectangle)
   }
-  testForCollisionWithCircle(circle: CircleColliderShape): boolean {
+  testForCollisionWithCircle(circle: CircleColliderShape): CollisionResult | undefined {
     return circle.testForCollisionWithAnyOtherShape(this)
   }
 }
@@ -280,14 +244,12 @@ export class Collider<Shape extends ColliderShape> extends Component {
     super()
   }
 
-  update(worldPos: PointData, rotation: number): void {
-    this.shape.position.copyFrom(worldPos)
+  updateShapeTransform(x: number, y: number, rotation: number) {
+    this.shape.setPosition(x, y)
     this.shape.rotation = rotation
-
-    this.shape.updateVertices()
   }
 
-  testForCollision<T extends ColliderShape>(other: Collider<T>): boolean {
+  testForCollision<T extends ColliderShape>(other: Collider<T>): CollisionResult | undefined {
     return this.shape.testForCollision(other.shape)
   }
 

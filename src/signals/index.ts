@@ -1,4 +1,4 @@
-export * from './ScreenResizeSignal'
+export * from './ScreenResizedSignal'
 export * from './CollisionSignal'
 export * from './GestureSignal'
 export * from './entity-lifecycle-signals'

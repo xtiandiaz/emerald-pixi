@@ -1,34 +1,41 @@
 import { Point } from 'pixi.js'
 import { Component, Vector } from '../core'
 
+export interface RigidBodyOptions {
+  gravityScale: Vector
+  mass: number
+  restitution: number
+
+  isKinematic: boolean
+  isStatic: boolean
+}
+
 export class RigidBody extends Component {
-  position: Point
-  rotation: number
+  position = new Point()
   velocity = new Vector()
-  gravity = new Vector(0, 9.81)
   force = new Vector()
-  mass = 1
 
-  isStatic = false
-  isSensor = false
+  rotation = 0
+  torque = 0
 
-  get x(): number {
-    return this.position.x
-  }
-  set x(val: number) {
-    this.position.x = val
-  }
-  get y(): number {
-    return this.position.y
-  }
-  set y(val: number) {
-    this.position.y = val
-  }
+  gravityScale: Vector
+  restitution: number
+  mass: number
 
-  constructor(x?: number, y?: number, rotation?: number) {
+  isKinematic: boolean
+  isStatic: boolean
+
+  constructor(x?: number, y?: number, rotation = 0, options?: Partial<RigidBodyOptions>) {
     super()
 
-    this.position = new Point(x, y)
-    this.rotation = rotation ?? 0
+    this.position.set(x, y)
+    this.rotation = rotation
+
+    this.gravityScale = options?.gravityScale ?? new Vector(1, 1)
+    this.restitution = options?.restitution ?? 0.2
+    this.mass = options?.mass ?? 1
+
+    this.isKinematic = options?.isKinematic ?? false
+    this.isStatic = options?.isStatic ?? false
   }
 }

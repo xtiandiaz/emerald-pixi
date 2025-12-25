@@ -10,12 +10,12 @@ export class CollisionSystem extends System {
     super()
   }
 
-  // init(world: World, hud: HUD, sb: SignalBus): void {
-  //   const ecs = world.getEntitiesWithComponent(Collider)
-  //   for (const { e, c } of ecs) {
-  //     e.addChild(c.createDebugGraphics())
-  //   }
-  // }
+  init(world: World, hud: HUD, sb: SignalBus): void {
+    const ecs = world.getEntitiesWithComponent(Collider)
+    for (const { e, c } of ecs) {
+      e.addChild(c.createDebugGraphics())
+    }
+  }
 
   deinit(): void {
     super.deinit()
@@ -31,8 +31,12 @@ export class CollisionSystem extends System {
       for (let j = i + 1; j < ecs.length; j++) {
         const { e: eB, c: cB } = ecs[j]!
 
-        cA.update(eA.position, eA.rotation)
-        cB.update(eB.position, eB.rotation)
+        // cA.position.copyFrom(eA.position)
+        // cA.rotation = eA.rotation
+        // cA.updateVertices()
+        // cB.position.copyFrom(eB.position)
+        // cB.rotation = eB.rotation
+        // cB.updateVertices()
 
         const areMeantToCollide =
           ((this.layerMap.get(cA.layer) ?? 0) && cB.layer) ||

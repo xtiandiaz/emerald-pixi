@@ -1,10 +1,13 @@
-import { System, World, Entity, type SignalBus } from '../core'
-import { RigidBody } from '../components'
-import { EntityAddedSignal } from '../signals'
 import type { Container } from 'pixi.js'
+import { System, World, type SignalBus, Vector } from '../core'
+import { updateEntityCollidersShapeTransform } from '../collision'
+import { calculateVelocitiesAfterCollision, detectCollisions, type Collision } from '../physics'
+import { Collider, RigidBody } from '../components'
+import { EntityAddedSignal } from '../signals'
 
 export interface PhysicsSystemOptions {
-  gravityScale: number
+  gravity: Vector
+  layerMap?: Map<number, number>
 }
 
 export class PhysicsSystem extends System {
@@ -15,41 +18,92 @@ export class PhysicsSystem extends System {
 
     this.options = {
       ...options,
-      gravityScale: 0.1,
+      gravity: new Vector(0, 0.981),
     }
   }
 
   init(world: World, hud: Container, sb: SignalBus): void {
-    world.getEntitiesWithComponent(RigidBody).forEach(({ e, c }) => {
-      e.position.copyFrom(c.position)
+    const ecs = world.getEntitiesWithComponent(Collider)
+    for (const { e, c } of ecs) {
+      e.addChild(c.createDebugGraphics())
+    }
+
+    world.getEntitiesWithComponent(RigidBody).forEach(({ e, c: rb }) => {
+      e.position.copyFrom(rb.position)
+      e.rotation = rb.rotation
     })
 
     this.connections.push(
       sb.connect(EntityAddedSignal, (s) => {
-        const e = world.getEntity(s.entityId)
-        const rb = e?.getComponent(RigidBody)
+        const e = world.getEntity(s.entityId)!
+        const rb = e.getComponent(RigidBody)
         if (rb) {
-          e!.position.copyFrom(rb.position)
+          e.position.copyFrom(rb.position)
+          e.rotation = rb.rotation
         }
       }),
     )
   }
 
   update(world: World, sb: SignalBus, dt: number): void {
-    const ecs = world.getEntitiesWithComponent(RigidBody).filter(({ c }) => !c.isStatic)
+    const e_rbs = world.getEntitiesWithComponent(RigidBody).filter(({ c }) => !c.isStatic)
+    let f = new Vector()
+    let a = new Vector()
 
-    for (const { e, c } of ecs) {
-      c.force.x = (c.force.x + c.gravity.x * this.options.gravityScale) * 0.5
-      c.force.y = (c.force.y + c.gravity.y * this.options.gravityScale) * 0.5
+    for (const { e, c: rb } of e_rbs) {
+      if (!rb.isKinematic) {
+        f.x = rb.force.x + this.options.gravity.x * rb.gravityScale.x
+        f.y = rb.force.y + this.options.gravity.y * rb.gravityScale.y
+        rb.force.set(0, 0)
 
-      const aX = c.force.x / c.mass
-      const aY = c.force.y / c.mass
+        a.x = f.x / rb.mass
+        a.y = f.y / rb.mass
 
-      const halfDtSqrd = 0.5 * dt * dt
-      c.velocity.set(c.velocity.x + aX * halfDtSqrd, c.velocity.y + aY * halfDtSqrd)
-      c.position.set(c.x + c.velocity.x * dt, c.y + c.velocity.y * dt)
-      e.position.copyFrom(c.position)
-      e.rotation = c.rotation
+        rb.velocity.set(rb.velocity.x + a.x * dt, rb.velocity.y + a.y * dt)
+      }
+      rb.position.set(rb.position.x + rb.velocity.x * dt, rb.position.y + rb.velocity.y * dt)
+    }
+
+    updateEntityCollidersShapeTransform(world.getEntitiesWithComponent(Collider))
+
+    const collisions = detectCollisions(
+      world.getEntitiesWithComponent(Collider),
+      this.options.layerMap,
+    )
+
+    this.resolveCollisions(world, collisions)
+
+    for (const { e, c: rb } of e_rbs) {
+      e.position.set(rb.position.x, rb.position.y)
+      e.rotation = rb.rotation
+    }
+  }
+
+  private resolveCollisions(world: World, collisions: Collision[]) {
+    // console.log(collisions.length)
+    for (const col of collisions) {
+      const rbA = world.getEntity(col.fromId)?.getComponent(RigidBody)
+      const rbB = world.getEntity(col.intoId)?.getComponent(RigidBody)
+      if (!rbA || !rbB) {
+        continue
+      }
+      const v1 = calculateVelocitiesAfterCollision(
+        rbA.velocity,
+        rbB.velocity,
+        rbA.mass,
+        rbB.mass,
+        rbA.restitution,
+        rbB.restitution,
+        col.dir,
+      )
+      rbA.velocity.set(v1.a.x, v1.a.y)
+      // console.log(rbA.velocity)
+      rbA.position.x += col.penetration * col.dir.x
+      rbA.position.y += col.penetration * col.dir.y
+
+      if (!rbB.isStatic) {
+        rbB.velocity.set(v1.b.x, v1.b.y)
+      }
     }
   }
 }

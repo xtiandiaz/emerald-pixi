@@ -1,10 +1,10 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
 import { Scene, Screen, World, type SignalBus, type Disconnectable } from '../core'
 import { SignalController } from '../controllers'
-import { EntityAddedSignal, EntityRemovedSignal, ScreenResizeSignal } from '../signals'
+import { EntityAddedSignal, EntityRemovedSignal, ScreenResizedSignal } from '../signals'
 import { type GameState } from './'
 
-export abstract class GameApp<State extends GameState> extends Application {
+export class GameApp<State extends GameState> extends Application {
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
@@ -19,7 +19,7 @@ export abstract class GameApp<State extends GameState> extends Application {
     this.stage.addChild(this.world)
   }
 
-  async init(options: Partial<ApplicationOptions>): Promise<void> {
+  async init(options: Partial<ApplicationOptions>, startScene?: string): Promise<void> {
     await super.init(options)
 
     this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAddedSignal(id))
@@ -31,6 +31,10 @@ export abstract class GameApp<State extends GameState> extends Application {
 
     this.renderer.on('resize', this.updateScreen, this)
     this.updateScreen()
+
+    if (startScene) {
+      await this.switchToScene(startScene)
+    }
   }
 
   connect?(sb: SignalBus): Disconnectable[]
@@ -81,6 +85,6 @@ export abstract class GameApp<State extends GameState> extends Application {
     Screen._w = this.renderer.width
     Screen._h = this.renderer.height
 
-    this.signalController.queue(new ScreenResizeSignal(this.renderer.width, this.renderer.height))
+    this.signalController.queue(new ScreenResizedSignal(this.renderer.width, this.renderer.height))
   }
 }
