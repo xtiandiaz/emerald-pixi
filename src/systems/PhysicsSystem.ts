@@ -1,42 +1,49 @@
-import type { Container } from 'pixi.js'
+import { Graphics, type Container } from 'pixi.js'
 import { System, World, type SignalBus, Vector } from '../core'
-import { updateEntityCollidersShapeTransform } from '../collision'
-import { calculateVelocitiesAfterCollision, detectCollisions, type Collision } from '../physics'
-import { Collider, RigidBody } from '../components'
-import { EntityAddedSignal } from '../signals'
+import { updateEntityColliderShapesTransform } from '../geometry'
+import {
+  calculateVelocitiesAfterCollision,
+  detectCollisions,
+  PENETRATION_ALLOWANCE,
+  PENETRATION_PERCENTAGE_TO_CORRECT,
+  type Collision,
+} from '../physics'
+import { Collider, Body } from '../components'
+import { CollisionSensorTriggered, EntityAdded } from '../signals'
 
 export interface PhysicsSystemOptions {
   gravity: Vector
   layerMap?: Map<number, number>
+  _rendersColliders: boolean
 }
 
 export class PhysicsSystem extends System {
   private options: PhysicsSystemOptions
+  private _cg?: Graphics
 
   constructor(options?: Partial<PhysicsSystemOptions>) {
     super()
 
     this.options = {
-      ...options,
       gravity: new Vector(0, 0.981),
+      _rendersColliders: false,
+      ...options,
     }
   }
 
   init(world: World, hud: Container, sb: SignalBus): void {
-    const ecs = world.getEntitiesWithComponent(Collider)
-    for (const { e, c } of ecs) {
-      e.addChild(c.createDebugGraphics())
+    if (this.options._rendersColliders) {
+      this._cg = new Graphics()
+      world.addChild(this._cg)
     }
-
-    world.getEntitiesWithComponent(RigidBody).forEach(({ e, c: rb }) => {
+    world.getEntitiesWithComponent(Body).forEach(({ e, c: rb }) => {
       e.position.copyFrom(rb.position)
       e.rotation = rb.rotation
     })
-
     this.connections.push(
-      sb.connect(EntityAddedSignal, (s) => {
+      sb.connect(EntityAdded, (s) => {
         const e = world.getEntity(s.entityId)!
-        const rb = e.getComponent(RigidBody)
+        const rb = e.getComponent(Body)
         if (rb) {
           e.position.copyFrom(rb.position)
           e.rotation = rb.rotation
@@ -46,63 +53,84 @@ export class PhysicsSystem extends System {
   }
 
   update(world: World, sb: SignalBus, dt: number): void {
-    const e_rbs = world.getEntitiesWithComponent(RigidBody).filter(({ c }) => !c.isStatic)
-    let f = new Vector()
-    let a = new Vector()
+    let force = new Vector()
+    let acc = new Vector()
 
-    for (const { e, c: rb } of e_rbs) {
-      if (!rb.isKinematic) {
-        f.x = rb.force.x + this.options.gravity.x * rb.gravityScale.x
-        f.y = rb.force.y + this.options.gravity.y * rb.gravityScale.y
-        rb.force.set(0, 0)
-
-        a.x = f.x / rb.mass
-        a.y = f.y / rb.mass
-
-        rb.velocity.set(rb.velocity.x + a.x * dt, rb.velocity.y + a.y * dt)
+    const e_bs = world.getEntitiesWithComponent(Body)
+    for (const { c: b } of e_bs) {
+      if (b.isStatic) {
+        continue
       }
-      rb.position.set(rb.position.x + rb.velocity.x * dt, rb.position.y + rb.velocity.y * dt)
+      if (!b.isKinematic) {
+        force.x = b.force.x + this.options.gravity.x * b.gravityScale.x
+        force.y = b.force.y + this.options.gravity.y * b.gravityScale.y
+        b.force.set(0, 0)
+
+        acc.x = force.x / b.mass
+        acc.y = force.y / b.mass
+
+        b.velocity.set(b.velocity.x + acc.x * dt, b.velocity.y + acc.y * dt)
+      }
+      b.position.set(b.position.x + b.velocity.x * dt, b.position.y + b.velocity.y * dt)
     }
 
-    updateEntityCollidersShapeTransform(world.getEntitiesWithComponent(Collider))
+    const collisions = detectCollisions(world.getEntitiesWithComponent(Body), this.options.layerMap)
+    this.resolveCollisions(world, sb, collisions)
 
-    const collisions = detectCollisions(
-      world.getEntitiesWithComponent(Collider),
-      this.options.layerMap,
-    )
+    for (const { e, c: b } of e_bs) {
+      b.position.set(b.position.x + b.velocity.x * dt, b.position.y + b.velocity.y * dt)
 
-    this.resolveCollisions(world, collisions)
+      e.position.set(b.position.x, b.position.y)
+      e.rotation = b.rotation
+    }
 
-    for (const { e, c: rb } of e_rbs) {
-      e.position.set(rb.position.x, rb.position.y)
-      e.rotation = rb.rotation
+    if (this._cg) {
+      this._cg.clear()
+      const e_cs = world.getEntitiesWithComponent(Collider)
+      for (const { c } of e_cs) {
+        c._draw(this._cg)
+      }
+      this._cg.stroke({ width: 1, color: 0x00ffff })
     }
   }
 
-  private resolveCollisions(world: World, collisions: Collision[]) {
-    // console.log(collisions.length)
+  private resolveCollisions(world: World, sb: SignalBus, collisions: Collision[]) {
     for (const col of collisions) {
-      const rbA = world.getEntity(col.fromId)?.getComponent(RigidBody)
-      const rbB = world.getEntity(col.intoId)?.getComponent(RigidBody)
-      if (!rbA || !rbB) {
+      // const sensor = col.actors.find((a) => a.isSensor)
+      // if (sensor) {
+      //   sb.emit(new CollisionSensorTriggered(sensor, col.actors.find((a) => a.id != sensor.id)!))
+      //   continue
+      // }
+      const A = world.getEntity(col.actors[0].id)!.getComponent(Body)
+      const B = world.getEntity(col.actors[1].id)!.getComponent(Body)
+      if (!A || !B) {
         continue
       }
-      const v1 = calculateVelocitiesAfterCollision(
-        rbA.velocity,
-        rbB.velocity,
-        rbA.mass,
-        rbB.mass,
-        rbA.restitution,
-        rbB.restitution,
-        col.dir,
-      )
-      rbA.velocity.set(v1.a.x, v1.a.y)
-      // console.log(rbA.velocity)
-      rbA.position.x += col.penetration * col.dir.x
-      rbA.position.y += col.penetration * col.dir.y
+      const relV = B.velocity.subtract(A.velocity)
+      const velAlongN = relV.dot(col.normal)
+      // console.log(velAlongN, col.normal)
+      // if (velAlongN > 0) {
+      // Bodies are already separating
+      // continue
+      // }
+      // Coefficient of restitution:
+      const e = Math.min(A.restitution, B.restitution)
+      // Impulse scalar:
+      const j = (-(1 + e) * velAlongN) / (A.iMass + B.iMass)
+      // Impulse (change in momentum; https://en.wikipedia.org/wiki/Momentum):
+      const I = col.normal.multiplyScalar(j)
 
-      if (!rbB.isStatic) {
-        rbB.velocity.set(v1.b.x, v1.b.y)
+      const correction = col.normal.multiplyScalar(
+        (Math.max(col.penetration - PENETRATION_ALLOWANCE, 0) * PENETRATION_PERCENTAGE_TO_CORRECT) /
+          (A.iMass + B.iMass),
+      )
+      if (!A.isStatic) {
+        A.velocity.set(A.velocity.x - I.x / A.mass, A.velocity.y - I.y / A.mass)
+        A.position.set(A.position.x - correction.x * A.iMass, A.position.y - correction.y * A.iMass)
+      }
+      if (!B.isStatic) {
+        B.velocity.set(B.velocity.x + I.x / B.mass, B.velocity.y + I.y / B.mass)
+        B.position.set(B.position.x + correction.x * B.iMass, B.position.y + correction.y * B.iMass)
       }
     }
   }

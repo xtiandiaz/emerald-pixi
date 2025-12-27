@@ -1,8 +1,9 @@
-import type { CollisionResult } from '../collision'
+import type { CollisionResult } from '../geometry'
 
 export type CollisionLayerMap = Map<number, number>
 
+export type CollisionActor = { id: number; tag?: string; isSensor: boolean }
+
 export interface Collision extends CollisionResult {
-  fromId: number
-  intoId: number
+  actors: [CollisionActor, CollisionActor]
 }

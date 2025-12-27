@@ -1,6 +1,7 @@
 import type { Vector } from '../core/types'
 
 export interface CollisionResult {
-  dir: Vector
+  normal: Vector
   penetration: number
+  faceIndex: number
 }

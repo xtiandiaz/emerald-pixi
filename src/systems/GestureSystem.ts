@@ -4,7 +4,7 @@ import { System, World, type Disconnectable, type SignalBus } from '../core'
 import { GestureKey } from '../input'
 import { connectContainerEvent } from '../input/utils'
 import type { HUD } from '../ui'
-import { RigidBody } from '../components'
+import { Body } from '../components'
 
 interface Target {
   id: number
@@ -38,7 +38,7 @@ export class GestureSystem extends System {
     }
     this.target = {
       id: eId,
-      offset: fpe.global.subtract(e.getComponent(RigidBody)?.position ?? e.position),
+      offset: fpe.global.subtract(e.getComponent(Body)?.position ?? e.position),
     }
     this.updateConnection = connectContainerEvent('globalpointermove', w, (fpe) => {
       this.updateGesture(fpe, w)

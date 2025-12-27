@@ -1,7 +1,7 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
 import { Scene, Screen, World, type SignalBus, type Disconnectable } from '../core'
 import { SignalController } from '../controllers'
-import { EntityAddedSignal, EntityRemovedSignal, ScreenResizedSignal } from '../signals'
+import { EntityAdded, EntityRemoved, ScreenResized } from '../signals'
 import { type GameState } from './'
 
 export class GameApp<State extends GameState> extends Application {
@@ -22,8 +22,8 @@ export class GameApp<State extends GameState> extends Application {
   async init(options: Partial<ApplicationOptions>, startScene?: string): Promise<void> {
     await super.init(options)
 
-    this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAddedSignal(id))
-    this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemovedSignal(id))
+    this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAdded(id))
+    this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemoved(id))
 
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
@@ -85,6 +85,6 @@ export class GameApp<State extends GameState> extends Application {
     Screen._w = this.renderer.width
     Screen._h = this.renderer.height
 
-    this.signalController.queue(new ScreenResizedSignal(this.renderer.width, this.renderer.height))
+    this.signalController.queue(new ScreenResized(this.renderer.width, this.renderer.height))
   }
 }

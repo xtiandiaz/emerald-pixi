@@ -1,6 +1,6 @@
 import { Assets, Rectangle } from 'pixi.js'
 import { World, System, Screen, type Disconnectable, type SignalBus } from './'
-import { ScreenResizedSignal } from '../signals'
+import { ScreenResized } from '../signals'
 import { HUD } from '../ui'
 
 export abstract class Scene {
@@ -20,9 +20,7 @@ export abstract class Scene {
 
     this.systems.forEach((s) => s.init?.(world, this.hud, sb))
 
-    this.connections.push(
-      sb.connect(ScreenResizedSignal, (s) => this.onScreenResized(s.width, s.height)),
-    )
+    this.connections.push(sb.connect(ScreenResized, (s) => this.onScreenResized(s.width, s.height)))
     this.onScreenResized(Screen.width, Screen.height)
   }
 

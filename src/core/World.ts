@@ -46,6 +46,16 @@ export class World extends Container {
       .map((e) => ({ e, c: e.getComponent(type)! }))
   }
 
+  getComponents<T extends Component>(type: SomeComponent<T>): T[] {
+    const cs: T[] = []
+    this.entities.forEach((e) => {
+      if (e.hasComponent(type)) {
+        cs.push(e.getComponent(type)!)
+      }
+    })
+    return cs
+  }
+
   removeEntity(id: number) {
     const e = this.getEntity(id)
     if (!e) {

@@ -1,5 +1,5 @@
 export * from './ContainerChildComponent'
-export * from './RigidBody'
+export * from './Body'
 export * from './collider-components'
 export * from './GestureTarget'
 export * from './gesture-components'

@@ -1,7 +1,32 @@
-import type { Bounds } from 'pixi.js'
+import { Point, type Bounds } from 'pixi.js'
 import { Vector, type Range, type Entity } from '../core'
-import { RigidBody, type Collider } from '../components'
+import { Body, type Collider } from '../components'
 import type { CollisionResult } from './types'
+
+/* 
+  Following:
+  – Using the 'integraph' of a polygon technique: https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+  – Using the 'Shoelace' formula to get the polygons's area: https://en.wikipedia.org/wiki/Shoelace_formula
+*/
+export function calculateCentroid(vertices: number[]) {
+  const c = new Point()
+  let x0: number, y0: number, x1: number, y1: number
+  let doubleTotalArea = 0
+  let crossProdSignedParalleloArea: number
+  for (let i = 0; i < vertices.length; i += 2) {
+    x0 = vertices[i]!
+    y0 = vertices[i + 1]!
+    x1 = vertices[(i + 2) % vertices.length]!
+    y1 = vertices[(i + 3) % vertices.length]!
+    crossProdSignedParalleloArea = x0 * y1 - x1 * y0
+    c.x += (x0 + x1) * crossProdSignedParalleloArea
+    c.y += (y0 + y1) * crossProdSignedParalleloArea
+    doubleTotalArea = +crossProdSignedParalleloArea
+  }
+  c.x /= 6 * 0.5 * doubleTotalArea
+  c.y /= 6 * 0.5 * doubleTotalArea
+  return c
+}
 
 export function testForAABB(a: Bounds, b: Bounds): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
@@ -27,13 +52,13 @@ export function getCircleProjectionRange(x: number, y: number, r: number, axis: 
   return { min: dot - r, max: dot + r }
 }
 
-export function updateEntityCollidersShapeTransform(e_cs: { e: Entity; c: Collider<any> }[]) {
+export function updateEntityColliderShapesTransform(e_cs: { e: Entity; c: Collider<any> }[]) {
   for (const { e, c } of e_cs) {
-    const rb = e.getComponent(RigidBody)
+    const rb = e.getComponent(Body)
     if (rb) {
-      c.updateShapeTransform(rb.position.x, rb.position.y, rb.rotation)
+      c.update(rb.position, rb.rotation)
     } else {
-      c.updateShapeTransform(e.position.x, e.position.y, e.rotation)
+      c.update(e.position, e.rotation)
     }
   }
 }
@@ -52,8 +77,9 @@ export function testForCollisionWithRangeProvider(
   getProjectionRangeB: (axis: Vector) => Range,
 ): CollisionResult | undefined {
   const res: CollisionResult = {
-    dir: new Vector(),
+    normal: new Vector(),
     penetration: Infinity,
+    faceIndex: -1,
   }
   for (let i = 0; i < vA.length; i += 2) {
     const axis = getProjectionAxis(vA, i)
@@ -69,15 +95,25 @@ export function testForCollisionWithRangeProvider(
     )
     if (penetration < res.penetration) {
       res.penetration = penetration
-      res.dir = axis
+      res.normal = axis
+      res.faceIndex = i
     }
   }
   return res
 }
 
-function getProjectionAxis(vertices: number[], index: number): Vector {
+export function getProjectionAxis(vertices: number[], index: number): Vector {
   return new Vector(
     vertices[(index + 3) % vertices.length]! - vertices[index + 1]!,
     vertices[index]! - vertices[(index + 2) % vertices.length]!,
   ).normalize()
+}
+
+export function getFaceAtIndex(vertices: number[], i: number): number[] {
+  return [
+    vertices[i]!,
+    vertices[i + 1]!,
+    vertices[(i + 2) % vertices.length]!,
+    vertices[(i + 3) % vertices.length]!,
+  ]
 }

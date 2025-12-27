@@ -1,58 +1,41 @@
-import { Graphics, Point, type PointData } from 'pixi.js'
+import { Graphics, ObservablePoint, Point, type PointData } from 'pixi.js'
 import { Component, distanceSquared, Vector, type Range } from '../core'
 import {
+  calculateCentroid,
   getCircleProjectionRange,
+  getFaceAtIndex,
   getPolygonProjectionRange,
+  getProjectionAxis,
   testForAABBWithDiagonalVertices,
   testForCollisionWithRangeProvider,
   testForCollisionWithVertices,
   type CollisionResult,
-} from '../collision'
+} from '../geometry'
 
 export abstract class ColliderShape {
-  readonly vertices: number[]
+  private static nextId = 0
+  readonly centroid: Point
+  readonly id: number
+  readonly vs: number[] // vertices
   readonly aabb: number[] = Array(4).fill(0)
 
-  protected readonly _pos = new Point()
-
-  protected _rot = 0
-  protected isRotated = false
-  get rotation(): number {
-    return this._rot
-  }
-  set rotation(val: number) {
-    this._rot = val
-    this.isRotated = val != 0
-    this.shouldUpdateVertices = true
-  }
-  private shouldUpdateVertices = true
-
   protected constructor(protected readonly points: number[]) {
-    this.vertices = [...points]
+    this.centroid = calculateCentroid(points)
+    this.id = ++ColliderShape.nextId
+    this.vs = [...points]
   }
 
-  static rectangle(cX: number, cY: number, w: number, h: number) {
-    return new RectangleColliderShape(cX, cY, w, h)
+  static rectangle(x: number, y: number, w: number, h: number) {
+    return new RectangleColliderShape(x, y, w, h)
   }
-  static circle(cX: number, cY: number, r: number) {
-    return new CircleColliderShape(cX, cY, r)
+  static circle(x: number, y: number, r: number) {
+    return new CircleColliderShape(x, y, r)
   }
   static polygon(...points: number[]) {
     return new PolygonColliderShape(points)
   }
 
-  setPosition(x: number, y: number) {
-    this._pos.set(x, y)
-    this.shouldUpdateVertices = true
-  }
-
   testForCollision<T extends ColliderShape>(other: T): CollisionResult | undefined {
-    if (this.shouldUpdateVertices) {
-      this.updateVertices()
-    }
-    if (other.shouldUpdateVertices) {
-      other.updateVertices()
-    }
     if (!testForAABBWithDiagonalVertices(this.aabb, other.aabb)) {
       return undefined
     }
@@ -75,77 +58,99 @@ export abstract class ColliderShape {
     "Any other shape" is limited to convex polygons.  
   */
   testForCollisionWithAnyOtherShape(other: ColliderShape): CollisionResult | undefined {
-    const cAB = testForCollisionWithVertices(this.vertices, other.vertices)
-    if (!cAB) {
+    const cAB = testForCollisionWithVertices(this.vs, other.vs)
+    const cBA = testForCollisionWithVertices(other.vs, this.vs)
+    if (!cAB || !cBA) {
       return undefined
     }
-    const cBA = testForCollisionWithVertices(other.vertices, this.vertices)
-    if (!cBA) {
-      return undefined
+    let minOverlap: CollisionResult
+    let bA: ColliderShape, bB: ColliderShape
+    if (cAB.penetration >= cBA.penetration * 0.95 + cAB.penetration * 0.1) {
+      console.log('here')
+      minOverlap = cAB
+      bA = this
+      bB = other
+    } else {
+      minOverlap = cBA
+      bA = other
+      bB = this
+      minOverlap.normal = minOverlap.normal.multiplyScalar(-1)
     }
-    return cAB.penetration < cBA.penetration ? cAB : cBA
+    let incFaceIndex = -1
+    let minDot = Infinity
+    for (let j = 0; j < bB.vs.length; j += 2) {
+      const normBj = getProjectionAxis(bB.vs, j)
+      const dot = minOverlap.normal.dot(normBj)
+      if (dot < minDot) {
+        minDot = dot
+        incFaceIndex = j
+      }
+    }
+    const refFace = getFaceAtIndex(bA.vs, minOverlap.faceIndex)
+    const refPlaneNormal = getProjectionAxis(bA.vs, minOverlap.faceIndex)
+
+    return minOverlap
   }
 
-  createDebugGraphics(): Graphics {
-    return new Graphics().poly(this.points).stroke({ width: 1, color: 0x00ffff })
-  }
-
-  protected updateVertices(): void {
+  updateVertices(pos: PointData, rot: number): void {
     let minX = Infinity
     let maxX = -Infinity
     let minY = Infinity
     let maxY = -Infinity
 
     for (let i = 0; i < this.points.length; i += 2) {
-      const cos = Math.cos(this._rot)
-      const sin = Math.sin(this._rot)
-      const x = this.points[i]!
-      const y = this.points[i + 1]!
+      const cos = Math.cos(rot)
+      const sin = Math.sin(rot)
+      const px = this.points[i]!
+      const py = this.points[i + 1]!
 
       // Rotation matrix: https://en.wikipedia.org/wiki/Rotation_matrix
-      this.vertices[i] = x * cos - y * sin + this._pos.x
-      this.vertices[i + 1] = x * sin + y * cos + this._pos.y
-      minX = Math.min(minX, this.vertices[i]!)
-      maxX = Math.max(maxX, this.vertices[i]!)
-      minY = Math.min(minY, this.vertices[i + 1]!)
-      maxY = Math.max(maxY, this.vertices[i + 1]!)
+      this.vs[i] = px * cos - py * sin + pos.x
+      this.vs[i + 1] = px * sin + py * cos + pos.y
+      minX = Math.min(minX, this.vs[i]!)
+      maxX = Math.max(maxX, this.vs[i]!)
+      minY = Math.min(minY, this.vs[i + 1]!)
+      maxY = Math.max(maxY, this.vs[i + 1]!)
 
       this.aabb[0] = minX
       this.aabb[1] = minY
       this.aabb[2] = maxX
       this.aabb[3] = maxY
     }
-    this.shouldUpdateVertices = false
+  }
+
+  _draw(g: Graphics) {
+    g.poly(this.vs)
   }
 }
 
 export class RectangleColliderShape extends ColliderShape {
   constructor(
-    private cX: number,
-    private cY: number,
+    private x: number,
+    private y: number,
     public w: number,
     public h: number,
   ) {
-    super([cX, cY, cX + w, cY, cX + w, cY + h, cX, cY + h])
+    super([x, y, x + w, y, x + w, y + h, x, y + h])
   }
 
-  updateVertices(): void {
-    if (this._rot != 0) {
-      super.updateVertices()
+  updateVertices(pos: PointData, rot: number): void {
+    if (rot != 0) {
+      super.updateVertices(pos, rot)
     } else {
-      this.aabb[0] = this.cX + this._pos.x
-      this.aabb[1] = this.cY + this._pos.y
+      this.aabb[0] = this.x + pos.x
+      this.aabb[1] = this.y + pos.y
       this.aabb[2] = this.aabb[0] + this.w
       this.aabb[3] = this.aabb[1] + this.h
 
-      this.vertices[0] = this.aabb[0]
-      this.vertices[1] = this.aabb[1]
-      this.vertices[2] = this.aabb[2]
-      this.vertices[3] = this.aabb[1]
-      this.vertices[4] = this.aabb[2]
-      this.vertices[5] = this.aabb[3]
-      this.vertices[6] = this.aabb[0]
-      this.vertices[7] = this.aabb[3]
+      this.vs[0] = this.aabb[0]
+      this.vs[1] = this.aabb[1]
+      this.vs[2] = this.aabb[2]
+      this.vs[3] = this.aabb[1]
+      this.vs[4] = this.aabb[2]
+      this.vs[5] = this.aabb[3]
+      this.vs[6] = this.aabb[0]
+      this.vs[7] = this.aabb[3]
     }
   }
 
@@ -163,16 +168,19 @@ export class RectangleColliderShape extends ColliderShape {
 
 export class CircleColliderShape extends ColliderShape {
   constructor(
-    private cX: number,
-    private cY: number,
+    private x: number,
+    private y: number,
     public r: number,
   ) {
-    super([])
+    super([x, y])
   }
 
-  updateVertices(): void {
-    this.aabb[0] = this.cX + this._pos.x - this.r
-    this.aabb[1] = this.cY + this._pos.y - this.r
+  updateVertices(pos: PointData, rot: number): void {
+    this.vs[0] = pos.x + this.points[0]!
+    this.vs[1] = pos.y + this.points[1]!
+
+    this.aabb[0] = this.x + pos.x - this.r
+    this.aabb[1] = this.y + pos.y - this.r
     this.aabb[2] = this.aabb[0] + 2 * this.r
     this.aabb[3] = this.aabb[1] + 2 * this.r
   }
@@ -181,50 +189,52 @@ export class CircleColliderShape extends ColliderShape {
     return this.testForCollisionWithAnyOtherShape(rectangle)
   }
   testForCollisionWithCircle(circle: CircleColliderShape): CollisionResult | undefined {
-    if (distanceSquared(this._pos, circle._pos) < Math.pow(this.r + circle.r, 2)) {
+    const deltaPos = new Vector(this.vs[0]! - circle.vs[0]!, this.vs[1]! - circle.vs[1]!)
+    if (deltaPos.magnitudeSquared() < Math.pow(this.r + circle.r, 2)) {
       return {
-        penetration: this.r + circle.r - circle._pos.subtract(this._pos).magnitude(),
-        dir: new Vector(circle.cX - this.cX, circle.cY - this.cY),
+        penetration: this.r + circle.r - deltaPos.magnitude(),
+        normal: new Vector(circle.x - this.x, circle.y - this.y),
+        faceIndex: -1, // TODO what value to use, or where to move the property to?
       }
     }
   }
   testForCollisionWithAnyOtherShape(other: ColliderShape): CollisionResult | undefined {
-    const cAxis = this.getAxisAtClosestVertex(other.vertices)
-    const cPR = getCircleProjectionRange(
-      this._pos.x + this.cX,
-      this._pos.y + this.cY,
-      this.r,
-      cAxis,
+    // const cAxis = this.getAxisAtClosestVertex(other.vertices)
+    // const cPR = getCircleProjectionRange(
+    //   this._pos.x + this.cX,
+    //   this._pos.y + this.cY,
+    //   this.r,
+    //   cAxis,
+    // )
+    // const oPR = getPolygonProjectionRange(other.vertices, cAxis)
+
+    // if (cPR.min <= oPR.max && oPR.min <= cPR.max) {
+    return testForCollisionWithRangeProvider(other.vs, (axis) =>
+      getCircleProjectionRange(this.vs[0]!, this.vs[1]!, this.r, axis),
     )
-    const oPR = getPolygonProjectionRange(other.vertices, cAxis)
-
-    if (cPR.min <= oPR.max && oPR.min <= cPR.max) {
-      return testForCollisionWithRangeProvider(other.vertices, (axis) =>
-        getCircleProjectionRange(this._pos.x + this.cX, this._pos.y + this.cY, this.r, axis),
-      )
-    }
+    // }
   }
 
-  createDebugGraphics(): Graphics {
-    return new Graphics().circle(this.cX, this.cY, this.r).stroke({ width: 1, color: 0x00ffff })
+  _draw(g: Graphics) {
+    g.circle(this.x + this.vs[0]!, this.y + this.vs[1]!, this.r)
   }
 
-  private getAxisAtClosestVertex(vertices: number[]): Vector {
-    const v = new Vector()
-    let dSqrd = -Infinity
-    let closestIndex = -1
-    for (let i = 0; i < vertices.length; i += 2) {
-      v.x = vertices[i]! - this._pos.x
-      v.y = vertices[i + 1]! - this._pos.y
+  // private getAxisAtClosestVertex(vertices: number[]): Vector {
+  //   const v = new Vector()
+  //   let dSqrd = -Infinity
+  //   let closestIndex = -1
+  //   for (let i = 0; i < vertices.length; i += 2) {
+  //     v.x = vertices[i]! - this._pos.x
+  //     v.y = vertices[i + 1]! - this._pos.y
 
-      const mSqrd = v.magnitudeSquared()
-      if (mSqrd < dSqrd) {
-        closestIndex = i
-        dSqrd = mSqrd
-      }
-    }
-    return v.normalize()
-  }
+  //     const mSqrd = v.magnitudeSquared()
+  //     if (mSqrd < dSqrd) {
+  //       closestIndex = i
+  //       dSqrd = mSqrd
+  //     }
+  //   }
+  //   return v.normalize()
+  // }
 }
 
 export class PolygonColliderShape extends ColliderShape {
@@ -236,24 +246,47 @@ export class PolygonColliderShape extends ColliderShape {
   }
 }
 
-export class Collider<Shape extends ColliderShape> extends Component {
+export interface ColliderOptions {
+  isSensor: boolean
+  layer?: number
+}
+
+export class Collider<Shape extends ColliderShape> extends Component implements ColliderOptions {
+  isSensor: boolean
+  layer?: number
+
+  private position = new Point()
+  private rotation = 0
+
   constructor(
     protected shape: Shape,
-    public layer: number,
+    options?: Partial<ColliderOptions>,
   ) {
     super()
+
+    this.isSensor = options?.isSensor ?? false
+    this.layer = options?.layer
   }
 
-  updateShapeTransform(x: number, y: number, rotation: number) {
-    this.shape.setPosition(x, y)
-    this.shape.rotation = rotation
+  update(position: PointData, rotation: number) {
+    this.position.set(position.x, position.y)
+    this.rotation = rotation
+    this.shape.updateVertices(position, rotation)
   }
 
   testForCollision<T extends ColliderShape>(other: Collider<T>): CollisionResult | undefined {
-    return this.shape.testForCollision(other.shape)
+    const col = this.shape.testForCollision(other.shape)
+    if (col) {
+      // const deltaPos = other.position.subtract(this.position)
+      // if (deltaPos.dot(col.normal) >= 0) {
+      //   col.normal.x *= -1
+      //   col.normal.y *= -1
+      // }
+    }
+    return col
   }
 
-  createDebugGraphics(): Graphics {
-    return this.shape.createDebugGraphics()
+  _draw(g: Graphics) {
+    this.shape._draw(g)
   }
 }
