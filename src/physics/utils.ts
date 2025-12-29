@@ -1,6 +1,8 @@
-import { Collider, Body } from '../components'
+import { Body } from '../components'
 import { Vector, type Entity } from '../core'
 import type { Collision, CollisionLayerMap } from './types'
+
+// export function testForCollision(A: Body, B: Body): Collision | undefined {}
 
 export function detectCollisions(
   e_bodies: { e: Entity; c: Body }[],
@@ -29,13 +31,13 @@ export function detectCollisions(
       if (!col) {
         continue
       }
-      collisions.push({
-        actors: [
-          { id: eA.id, tag: eA.tag, isSensor: false },
-          { id: eB.id, tag: eB.tag, isSensor: false },
-        ],
-        ...col,
-      })
+      // collisions.push({
+      //   actors: [
+      //     { id: eA.id, tag: eA.tag, isSensor: false },
+      //     { id: eB.id, tag: eB.tag, isSensor: false },
+      //   ],
+      //   ...col,
+      // })
     }
   }
   return collisions

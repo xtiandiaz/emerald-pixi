@@ -1,4 +1,4 @@
-import { Graphics, ObservablePoint, Point, type PointData } from 'pixi.js'
+import { Graphics, Matrix, ObservablePoint, Point, Transform, type PointData } from 'pixi.js'
 import { Component, distanceSquared, Vector, type Range } from '../core'
 import {
   calculateCentroid,
@@ -10,9 +10,10 @@ import {
   testForCollisionWithRangeProvider,
   testForCollisionWithVertices,
   type CollisionResult,
+  type ShapeContact,
 } from '../geometry'
 
-export abstract class ColliderShape {
+export abstract class _ColliderShape {
   private static nextId = 0
   readonly centroid: Point
   readonly id: number
@@ -21,26 +22,27 @@ export abstract class ColliderShape {
 
   protected constructor(protected readonly points: number[]) {
     this.centroid = calculateCentroid(points)
-    this.id = ++ColliderShape.nextId
+    this.id = ++_ColliderShape.nextId
     this.vs = [...points]
   }
 
-  static rectangle(x: number, y: number, w: number, h: number) {
-    return new RectangleColliderShape(x, y, w, h)
-  }
   static circle(x: number, y: number, r: number) {
     return new CircleColliderShape(x, y, r)
+  }
+  static rectangle(x: number, y: number, w: number, h: number) {
+    return new RectangleColliderShape(x, y, w, h)
   }
   static polygon(...points: number[]) {
     return new PolygonColliderShape(points)
   }
 
-  testForCollision<T extends ColliderShape>(other: T): CollisionResult | undefined {
-    if (!testForAABBWithDiagonalVertices(this.aabb, other.aabb)) {
-      return undefined
-    }
+  testForCollision<T extends _ColliderShape>(other: T): CollisionResult | undefined {
+    // if (!testForAABBWithDiagonalVertices(this.aabb, other.aabb)) {
+    //   return undefined
+    // }
     if (other instanceof RectangleColliderShape) {
-      return this.testForCollisionWithRectangle(other)
+      // return this.testForCollisionWithRectangle(other)
+      return this.testForCollisionWithAnyOtherShape(other)
     } else if (other instanceof CircleColliderShape) {
       return this.testForCollisionWithCircle(other)
     } else if (other instanceof PolygonColliderShape) {
@@ -57,14 +59,14 @@ export abstract class ColliderShape {
   /*  
     "Any other shape" is limited to convex polygons.  
   */
-  testForCollisionWithAnyOtherShape(other: ColliderShape): CollisionResult | undefined {
+  testForCollisionWithAnyOtherShape(other: _ColliderShape): CollisionResult | undefined {
     const cAB = testForCollisionWithVertices(this.vs, other.vs)
     const cBA = testForCollisionWithVertices(other.vs, this.vs)
     if (!cAB || !cBA) {
       return undefined
     }
     let minOverlap: CollisionResult
-    let bA: ColliderShape, bB: ColliderShape
+    let bA: _ColliderShape, bB: _ColliderShape
     if (cAB.penetration >= cBA.penetration * 0.95 + cAB.penetration * 0.1) {
       console.log('here')
       minOverlap = cAB
@@ -124,7 +126,7 @@ export abstract class ColliderShape {
   }
 }
 
-export class RectangleColliderShape extends ColliderShape {
+export class RectangleColliderShape extends _ColliderShape {
   constructor(
     private x: number,
     private y: number,
@@ -166,7 +168,7 @@ export class RectangleColliderShape extends ColliderShape {
   }
 }
 
-export class CircleColliderShape extends ColliderShape {
+export class CircleColliderShape extends _ColliderShape {
   constructor(
     private x: number,
     private y: number,
@@ -198,7 +200,7 @@ export class CircleColliderShape extends ColliderShape {
       }
     }
   }
-  testForCollisionWithAnyOtherShape(other: ColliderShape): CollisionResult | undefined {
+  testForCollisionWithAnyOtherShape(other: _ColliderShape): CollisionResult | undefined {
     // const cAxis = this.getAxisAtClosestVertex(other.vertices)
     // const cPR = getCircleProjectionRange(
     //   this._pos.x + this.cX,
@@ -237,56 +239,105 @@ export class CircleColliderShape extends ColliderShape {
   // }
 }
 
-export class PolygonColliderShape extends ColliderShape {
-  testForCollisionWithRectangle(rectangle: RectangleColliderShape): CollisionResult | undefined {
-    return this.testForCollisionWithAnyOtherShape(rectangle)
+export abstract class ColliderShape {
+  transform = new Transform()
+
+  protected constructor(
+    public readonly vertices: Point[],
+    public readonly normals: Vector[],
+    public readonly centroid: Point,
+  ) {}
+
+  static rectangle(x: number, y: number, w: number, h: number) {
+    return ColliderShape.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
   }
-  testForCollisionWithCircle(circle: CircleColliderShape): CollisionResult | undefined {
-    return circle.testForCollisionWithAnyOtherShape(this)
-  }
-}
-
-export interface ColliderOptions {
-  isSensor: boolean
-  layer?: number
-}
-
-export class Collider<Shape extends ColliderShape> extends Component implements ColliderOptions {
-  isSensor: boolean
-  layer?: number
-
-  private position = new Point()
-  private rotation = 0
-
-  constructor(
-    protected shape: Shape,
-    options?: Partial<ColliderOptions>,
-  ) {
-    super()
-
-    this.isSensor = options?.isSensor ?? false
-    this.layer = options?.layer
+  static polygon(vertices: number[]) {
+    return new PolygonColliderShape(vertices)
   }
 
-  update(position: PointData, rotation: number) {
-    this.position.set(position.x, position.y)
-    this.rotation = rotation
-    this.shape.updateVertices(position, rotation)
-  }
-
-  testForCollision<T extends ColliderShape>(other: Collider<T>): CollisionResult | undefined {
-    const col = this.shape.testForCollision(other.shape)
-    if (col) {
-      // const deltaPos = other.position.subtract(this.position)
-      // if (deltaPos.dot(col.normal) >= 0) {
-      //   col.normal.x *= -1
-      //   col.normal.y *= -1
-      // }
+  testForContact(B: ColliderShape) {
+    if (B instanceof PolygonColliderShape) {
+      return this.testForContactWithPolygon(B)
     }
-    return col
   }
 
-  _draw(g: Graphics) {
-    this.shape._draw(g)
+  abstract testForContactWithPolygon(B: PolygonColliderShape): ShapeContact | undefined
+}
+
+export class PolygonColliderShape extends ColliderShape {
+  constructor(vertices: number[]) {
+    const centroid = calculateCentroid(vertices)
+    const _vertices: Point[] = []
+    for (let i = 0; i < vertices.length; i += 2) {
+      _vertices.push(new Point(vertices[i]!, vertices[i + 1]!))
+    }
+    const normals: Vector[] = []
+    for (let i = 0; i < _vertices.length; i++) {
+      const vi = _vertices[i]!
+      const vi1 = _vertices[(i + 1) % _vertices.length]!
+      const face: Vector = vi1.subtract(vi)
+      normals.push(new Vector(face.y, -face.x).normalize()) // => -90º rotation => [0 1; -1 0] x [fX; fY] = [fY;-fX]
+    }
+    super(_vertices, normals, centroid)
+  }
+
+  testForContactWithPolygon(B: PolygonColliderShape): ShapeContact | undefined {
+    const A = this
+    const penA = PolygonColliderShape.getPenetration(A, B)
+    if (!penA) {
+      return
+    }
+    const penB = PolygonColliderShape.getPenetration(B, A)
+    if (!penB) {
+      return
+    }
+    console.log(penA, penB)
+  }
+
+  private static getPenetration(
+    A: PolygonColliderShape,
+    B: PolygonColliderShape,
+  ): { value: number; faceIndex: number } | undefined {
+    const maxDist = { value: -Infinity, faceIndex: -1 }
+    let N = new Vector()
+    let tVProj = new Point()
+    let tV = new Point()
+
+    for (let i = 0; i < A.vertices.length; i++) {
+      A.rotateNormal(i, N)
+      B.transformVertex(B.getVertexIndexWithMaxProjection(N.multiplyScalar(-1)), tVProj)
+      A.transformVertex(i, tV)
+      const penDist = N.dot(tVProj.subtract(tV))
+      if (penDist > maxDist.value) {
+        maxDist.value = penDist
+        maxDist.faceIndex = i
+      }
+    }
+    if (maxDist.value < 0) {
+      return maxDist
+    }
+  }
+
+  private getVertexIndexWithMaxProjection(axis: Vector): number {
+    let maxProj = -Infinity
+    let index = -1
+    let tV = new Point()
+
+    for (let i = 0; i < this.vertices.length; i++) {
+      this.transformVertex(i, tV)
+      const proj = tV.dot(axis)
+      if (proj > maxProj) {
+        maxProj = proj
+        index = i
+      }
+    }
+    return index
+  }
+
+  private rotateNormal(index: number, output: Vector) {
+    this.normals[index]!.rotate(this.transform.rotation, output)
+  }
+  private transformVertex(index: number, output: Point) {
+    this.transform.matrix.apply(this.vertices[index]!, output)
   }
 }

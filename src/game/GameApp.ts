@@ -1,14 +1,15 @@
-import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
-import { Scene, Screen, World, type SignalBus, type Disconnectable } from '../core'
+import { Application, Ticker, UPDATE_PRIORITY, type ApplicationOptions } from 'pixi.js'
+import { Scene, Screen, World, type SignalBus, type Disconnectable, clamp } from '../core'
 import { SignalController } from '../controllers'
 import { EntityAdded, EntityRemoved, ScreenResized } from '../signals'
-import { type GameState } from './'
+import { type FixedTimeStep, type GameState } from './'
 
 export class GameApp<State extends GameState> extends Application {
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
   private connections: Disconnectable[] = []
+  private fixedTimeStep!: FixedTimeStep
 
   constructor(
     public state: State,
@@ -22,11 +23,17 @@ export class GameApp<State extends GameState> extends Application {
   async init(options: Partial<ApplicationOptions>, startScene?: string): Promise<void> {
     await super.init(options)
 
+    this.fixedTimeStep = {
+      step: 1 / this.ticker.FPS,
+      accTime: 0,
+    }
+
     this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAdded(id))
     this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemoved(id))
 
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
+    this.ticker.add(this.fixedUpdate, this, UPDATE_PRIORITY.HIGH)
     this.ticker.add(this.update, this)
 
     this.renderer.on('resize', this.updateScreen, this)
@@ -64,6 +71,20 @@ export class GameApp<State extends GameState> extends Application {
     }
     this.stage.addChild(nextScene.hud)
     this.scene = nextScene
+  }
+
+  private fixedUpdate(ticker: Ticker) {
+    if (this.state.isPaused) {
+      return
+    }
+    this.fixedTimeStep.accTime = clamp(this.fixedTimeStep.accTime + ticker.deltaMS, 0, 0.1)
+
+    while (this.fixedTimeStep.accTime >= this.fixedTimeStep.step) {
+      this.scene?.systems.forEach((s) => {
+        s.fixedUpdate?.(this.world, this.signalController, this.fixedTimeStep.step)
+      })
+      this.fixedTimeStep.accTime -= this.fixedTimeStep.step
+    }
   }
 
   private update(ticker: Ticker) {

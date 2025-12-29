@@ -1,6 +1,6 @@
 import { Point, type Bounds } from 'pixi.js'
 import { Vector, type Range, type Entity } from '../core'
-import { Body, type Collider } from '../components'
+import { Body } from '../components'
 import type { CollisionResult } from './types'
 
 /* 
@@ -21,7 +21,7 @@ export function calculateCentroid(vertices: number[]) {
     crossProdSignedParalleloArea = x0 * y1 - x1 * y0
     c.x += (x0 + x1) * crossProdSignedParalleloArea
     c.y += (y0 + y1) * crossProdSignedParalleloArea
-    doubleTotalArea = +crossProdSignedParalleloArea
+    doubleTotalArea += crossProdSignedParalleloArea
   }
   c.x /= 6 * 0.5 * doubleTotalArea
   c.y /= 6 * 0.5 * doubleTotalArea
@@ -52,16 +52,16 @@ export function getCircleProjectionRange(x: number, y: number, r: number, axis: 
   return { min: dot - r, max: dot + r }
 }
 
-export function updateEntityColliderShapesTransform(e_cs: { e: Entity; c: Collider<any> }[]) {
-  for (const { e, c } of e_cs) {
-    const rb = e.getComponent(Body)
-    if (rb) {
-      c.update(rb.position, rb.rotation)
-    } else {
-      c.update(e.position, e.rotation)
-    }
-  }
-}
+// export function updateEntityColliderShapesTransform(e_cs: { e: Entity; c: Collider<any> }[]) {
+//   for (const { e, c } of e_cs) {
+//     const rb = e.getComponent(Body)
+//     if (rb) {
+//       c.update(rb.position, rb.rotation)
+//     } else {
+//       c.update(e.position, e.rotation)
+//     }
+//   }
+// }
 
 /* 
   Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/ 

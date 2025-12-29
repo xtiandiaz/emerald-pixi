@@ -11,5 +11,6 @@ export class System {
     this.connections.length = 0
   }
 
+  fixedUpdate?(world: World, sb: SignalBus, dt: number): void
   update?(world: World, sb: SignalBus, dt: number): void
 }
