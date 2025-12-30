@@ -2,9 +2,15 @@ import { Application, Ticker, UPDATE_PRIORITY, type ApplicationOptions } from 'p
 import { Scene, Screen, World, type SignalBus, type Disconnectable, clamp } from '../core'
 import { SignalController } from '../controllers'
 import { EntityAdded, EntityRemoved, ScreenResized } from '../signals'
-import { type FixedTimeStep, type GameState } from './'
+import { type FixedTimeStep, type GameState } from '.'
 
-export class GameApp<State extends GameState> extends Application {
+export interface GameOptions {
+  pixelsPerMeter: number
+}
+
+export class Game<State extends GameState> extends Application {
+  static readonly PPM = 10
+
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
@@ -16,6 +22,8 @@ export class GameApp<State extends GameState> extends Application {
     private scenes: Scene[],
   ) {
     super()
+
+    this.stage.scale = Game.PPM
 
     this.stage.addChild(this.world)
   }
@@ -33,7 +41,7 @@ export class GameApp<State extends GameState> extends Application {
 
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
-    this.ticker.add(this.fixedUpdate, this, UPDATE_PRIORITY.HIGH)
+    this.ticker.add(this.fixedUpdate, this)
     this.ticker.add(this.update, this)
 
     this.renderer.on('resize', this.updateScreen, this)
@@ -81,7 +89,7 @@ export class GameApp<State extends GameState> extends Application {
 
     while (this.fixedTimeStep.accTime >= this.fixedTimeStep.step) {
       this.scene?.systems.forEach((s) => {
-        s.fixedUpdate?.(this.world, this.signalController, this.fixedTimeStep.step)
+        s.fixedUpdate?.(this.world, this.signalController, 10 * this.fixedTimeStep.step)
       })
       this.fixedTimeStep.accTime -= this.fixedTimeStep.step
     }
@@ -103,9 +111,9 @@ export class GameApp<State extends GameState> extends Application {
   }
 
   private updateScreen() {
-    Screen._w = this.renderer.width
-    Screen._h = this.renderer.height
+    Screen._w = this.renderer.width / Game.PPM
+    Screen._h = this.renderer.height / Game.PPM
 
-    this.signalController.queue(new ScreenResized(this.renderer.width, this.renderer.height))
+    this.signalController.queue(new ScreenResized(Screen._w, Screen._h))
   }
 }

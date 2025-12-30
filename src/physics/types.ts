@@ -1,16 +1,23 @@
 import type { Point } from 'pixi.js'
-import type { CollisionResult } from '../geometry'
 import type { Vector } from '../core'
+import type { Body } from '../components'
+
+export interface Gravity {
+  vector: Vector
+  scale: number
+}
 
 export type CollisionLayerMap = Map<number, number>
 
-export type CollisionActor = { id: number; tag?: string; isSensor: boolean }
-
-export interface Collision extends CollisionResult {
-  A: Body // Reference Body
-  B: Body // Incident Body
-
+export interface Contact {
   penetration: number
   normal: Vector
-  contactPoints: Point[]
+  points: Point[]
+}
+
+export interface Collision extends Contact {
+  A: Body
+  B: Body
+  restitution: number // usually denoted by 'e'
+  sumInvMasses: number
 }

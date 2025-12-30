@@ -1,2 +1,2 @@
-export * from './GameApp'
+export * from './Game'
 export * from './types'

@@ -1,47 +1,53 @@
 import { Body } from '../components'
 import { Vector, type Entity } from '../core'
-import type { Collision, CollisionLayerMap } from './types'
+import type { Contact, CollisionLayerMap } from './types'
 
-// export function testForCollision(A: Body, B: Body): Collision | undefined {}
-
-export function detectCollisions(
-  e_bodies: { e: Entity; c: Body }[],
-  layerMap?: CollisionLayerMap,
-): Collision[] {
-  let collisions: Collision[] = []
-
-  for (let i = 0; i < e_bodies.length; i++) {
-    const { e: eA, c: A } = e_bodies[i]!
-
-    for (let j = i + 1; j < e_bodies.length; j++) {
-      const { e: eB, c: B } = e_bodies[j]!
-
-      A.shape.updateVertices(A.position, A.rotation)
-      B.shape.updateVertices(B.position, B.rotation)
-
-      const areMeantToCollide =
-        !layerMap ||
-        (A.layer ? (layerMap.get(A.layer) ?? 0) && B.layer : true) ||
-        (B.layer ? (layerMap.get(B.layer) ?? 0) && A.layer : true)
-
-      if (!areMeantToCollide) {
-        continue
-      }
-      const col = A.shape.testForCollision(B.shape)
-      if (!col) {
-        continue
-      }
-      // collisions.push({
-      //   actors: [
-      //     { id: eA.id, tag: eA.tag, isSensor: false },
-      //     { id: eB.id, tag: eB.tag, isSensor: false },
-      //   ],
-      //   ...col,
-      // })
-    }
-  }
-  return collisions
+export function testForCollision(A: Body, B: Body): Contact | undefined {
+  // const contact = A.shape.testForContact(B.shape)
+  // if (!contact) {
+  //   return
+  // }
+  return
 }
+
+// export function detectCollisions(
+//   e_bodies: { e: Entity; c: Body }[],
+//   layerMap?: CollisionLayerMap,
+// ): Collision[] {
+//   let collisions: Collision[] = []
+
+//   for (let i = 0; i < e_bodies.length; i++) {
+//     const { e: eA, c: A } = e_bodies[i]!
+
+//     for (let j = i + 1; j < e_bodies.length; j++) {
+//       const { e: eB, c: B } = e_bodies[j]!
+
+//       A.shape.updateVertices(A.position, A.rotation)
+//       B.shape.updateVertices(B.position, B.rotation)
+
+//       const areMeantToCollide =
+//         !layerMap ||
+//         (A.layer ? (layerMap.get(A.layer) ?? 0) && B.layer : true) ||
+//         (B.layer ? (layerMap.get(B.layer) ?? 0) && A.layer : true)
+
+//       if (!areMeantToCollide) {
+//         continue
+//       }
+//       const col = A.shape.testForCollision(B.shape)
+//       if (!col) {
+//         continue
+//       }
+//       // collisions.push({
+//       //   actors: [
+//       //     { id: eA.id, tag: eA.tag, isSensor: false },
+//       //     { id: eB.id, tag: eB.tag, isSensor: false },
+//       //   ],
+//       //   ...col,
+//       // })
+//     }
+//   }
+//   return collisions
+// }
 
 /* 
   v0: velocity before collision

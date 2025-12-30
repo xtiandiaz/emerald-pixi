@@ -1,7 +1,6 @@
 import { Point, type Bounds } from 'pixi.js'
 import { Vector, type Range, type Entity } from '../core'
 import { Body } from '../components'
-import type { CollisionResult } from './types'
 
 /* 
   Following:
@@ -35,6 +34,8 @@ export function testForAABBWithDiagonalVertices(a: number[], b: number[]): boole
   return !(a[0]! > b[2]! || a[2]! < b[0]! || a[1]! > b[3]! || a[3]! < b[1]!)
 }
 
+// export function capSegment(a: Vector, b: Vector, )
+
 export function getPolygonProjectionRange(vertices: number[], axis: Vector): Range {
   const range = { min: Infinity, max: -Infinity }
   let proj: number
@@ -63,44 +64,44 @@ export function getCircleProjectionRange(x: number, y: number, r: number, axis: 
 //   }
 // }
 
-/* 
-  Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/ 
-*/
-export function testForCollisionWithVertices(
-  vA: number[],
-  vB: number[],
-): CollisionResult | undefined {
-  return testForCollisionWithRangeProvider(vA, (axis) => getPolygonProjectionRange(vB, axis))
-}
-export function testForCollisionWithRangeProvider(
-  vA: number[],
-  getProjectionRangeB: (axis: Vector) => Range,
-): CollisionResult | undefined {
-  const res: CollisionResult = {
-    normal: new Vector(),
-    penetration: Infinity,
-    faceIndex: -1,
-  }
-  for (let i = 0; i < vA.length; i += 2) {
-    const axis = getProjectionAxis(vA, i)
-    const pRangeA = getPolygonProjectionRange(vA, axis)
-    const pRangeB = getProjectionRangeB(axis)
+// /*
+//   Following SAT – Separating Axis Theorem: https://www.sevenson.com.au/programming/sat/
+// */
+// export function testForCollisionWithVertices(
+//   vA: number[],
+//   vB: number[],
+// ): CollisionResult | undefined {
+//   return testForCollisionWithRangeProvider(vA, (axis) => getPolygonProjectionRange(vB, axis))
+// }
+// export function testForCollisionWithRangeProvider(
+//   vA: number[],
+//   getProjectionRangeB: (axis: Vector) => Range,
+// ): CollisionResult | undefined {
+//   const res: CollisionResult = {
+//     normal: new Vector(),
+//     penetration: Infinity,
+//     faceIndex: -1,
+//   }
+//   for (let i = 0; i < vA.length; i += 2) {
+//     const axis = getProjectionAxis(vA, i)
+//     const pRangeA = getPolygonProjectionRange(vA, axis)
+//     const pRangeB = getProjectionRangeB(axis)
 
-    if (pRangeB.max < pRangeA.min || pRangeA.max < pRangeB.min) {
-      return undefined
-    }
-    const penetration = Math.min(
-      Math.abs(pRangeA.max - pRangeB.min),
-      Math.abs(pRangeB.max - pRangeA.min),
-    )
-    if (penetration < res.penetration) {
-      res.penetration = penetration
-      res.normal = axis
-      res.faceIndex = i
-    }
-  }
-  return res
-}
+//     if (pRangeB.max < pRangeA.min || pRangeA.max < pRangeB.min) {
+//       return undefined
+//     }
+//     const penetration = Math.min(
+//       Math.abs(pRangeA.max - pRangeB.min),
+//       Math.abs(pRangeB.max - pRangeA.min),
+//     )
+//     if (penetration < res.penetration) {
+//       res.penetration = penetration
+//       res.normal = axis
+//       res.faceIndex = i
+//     }
+//   }
+//   return res
+// }
 
 export function getProjectionAxis(vertices: number[], index: number): Vector {
   return new Vector(
