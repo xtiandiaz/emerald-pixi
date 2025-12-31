@@ -1,16 +1,39 @@
 import { Graphics, Matrix, ObservablePoint, Point, Transform, type PointData } from 'pixi.js'
-import { Component, distanceSquared, Vector, type Range } from '../core'
+import { Component, deltaPos, distanceSquared, invert, normal, Vector, type Range } from '../core'
 import { calculateCentroid } from '../geometry'
-import type { Contact } from './types'
+import type { AABB, Contact } from './types'
+import {
+  getCircleProjectionRange,
+  getClosestVertexToPoint,
+  getVerticesProjectionRange,
+  hasProjectionOverlap,
+  isAABBIntersection,
+} from './utils'
 
 export abstract class Collider {
-  transform = new Transform()
+  readonly vertices: Point[]
+  readonly normals: Vector[]
+  protected transform = new Transform()
+  private shouldUpdateVertices = true
+
+  get center(): PointData {
+    return this.transform.position.add(this.centroid)
+  }
+  get position(): PointData {
+    return this.transform.position
+  }
 
   protected constructor(
-    public readonly vertices: Point[],
-    public readonly normals: Vector[],
-    public readonly centroid: Point,
-  ) {}
+    protected readonly _vertices: Point[],
+    protected readonly _normals: Vector[],
+    protected readonly centroid: Point,
+    public readonly aabb: AABB = { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } },
+  ) {
+    this.vertices = [..._vertices]
+    this.normals = [..._normals]
+
+    this.updateVertices()
+  }
 
   static circle(x: number, y: number, r: number) {
     return new CircleCollider(x, y, r)
@@ -22,16 +45,66 @@ export abstract class Collider {
     return Collider.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
   }
 
-  testForContact(B: Collider): Contact | undefined {
+  setTransform(t: Transform) {
+    this.shouldUpdateVertices =
+      this.transform.position.x != t.position.x ||
+      this.transform.position.y != t.position.y ||
+      this.transform.rotation != t.rotation
+
+    this.transform.position.set(t.position.x, t.position.y)
+    this.transform.rotation = t.rotation
+  }
+
+  hasAABBIntersection(B: Collider): boolean {
+    this.updateVerticesIfNeeded()
+    B.updateVerticesIfNeeded()
+
+    return isAABBIntersection(this.aabb, B.aabb)
+  }
+
+  getContact(B: Collider): Contact | undefined {
+    this.updateVerticesIfNeeded()
+    B.updateVerticesIfNeeded()
+
     if (B instanceof CircleCollider) {
-      return this.testForContactWithCircle(B)
+      return this.getContactWithCircle(B)
     } else if (B instanceof PolygonCollider) {
-      return this.testForContactWithPolygon(B)
+      return this.getContactWithPolygon(B)
     }
   }
 
-  abstract testForContactWithCircle(B: CircleCollider): Contact | undefined
-  abstract testForContactWithPolygon(B: PolygonCollider): Contact | undefined
+  abstract getContactWithCircle(B: CircleCollider): Contact | undefined
+  abstract getContactWithPolygon(B: PolygonCollider): Contact | undefined
+
+  protected updateVertices() {
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+
+    for (let i = 0; i < this._vertices.length; i++) {
+      const v = this.vertices[i]!
+      this.transform.matrix.apply(this._vertices[i]!, v)
+      this._normals[i]!.rotate(this.transform.rotation, this.normals[i])
+
+      minX = Math.min(minX, v.x)
+      maxX = Math.max(maxX, v.x)
+      minY = Math.min(minY, v.y)
+      maxY = Math.max(maxY, v.y)
+    }
+
+    this.aabb.min.x = minX
+    this.aabb.min.y = minY
+    this.aabb.max.x = maxX
+    this.aabb.max.y = maxY
+  }
+
+  private updateVerticesIfNeeded() {
+    if (this.shouldUpdateVertices) {
+      this.updateVertices()
+    }
+    this.shouldUpdateVertices = false
+  }
 }
 
 export class CircleCollider extends Collider {
@@ -40,92 +113,86 @@ export class CircleCollider extends Collider {
     y: number,
     public radius: number,
   ) {
-    super([], [], new Point(x, y))
+    super([], [], new Point(x, y), {
+      min: { x: x - radius, y: y - radius },
+      max: { x: x + radius, y: y + radius },
+    })
   }
 
-  testForContactWithCircle(B: CircleCollider): Contact | undefined {
-    const sumOfRadii = this.radius + B.radius
-    const tPosA = this.centroid.add(this.transform.position)
-    const diffPos = B.centroid.add(B.transform.position).subtract(tPosA)
+  getContactWithCircle(B: CircleCollider): Contact | undefined {
+    const radii = this.radius + B.radius
+    const diffPos = deltaPos(B.center, this.center)
     const distSqrd = diffPos.magnitudeSquared()
-    if (distSqrd > sumOfRadii * sumOfRadii) {
+    if (distSqrd >= radii * radii) {
       return
     }
     const dist = Math.sqrt(distSqrd)
-    if (dist == 0) {
-      return {
-        penetration: this.radius,
-        normal: new Vector(1, 0),
-        points: [tPosA],
-      }
-    }
-    const N = diffPos.divideByScalar(dist)
     return {
-      penetration: dist - sumOfRadii,
-      normal: N,
-      points: [tPosA.add(N.multiplyScalar(this.radius))],
+      depth: dist - radii,
+      normal: diffPos.divideByScalar(dist),
     }
   }
 
-  testForContactWithPolygon(B: PolygonCollider): Contact | undefined {
-    const pen = this.getPolygonPenetration(B)
-    if (!pen) {
+  getContactWithPolygon(B: PolygonCollider): Contact | undefined {
+    const contact: Contact = { depth: Infinity, normal: new Vector() }
+    let axis!: Vector, cProj!: Range, vProj!: Range
+
+    for (let i = 0; i < B.vertices.length; i++) {
+      axis = B.normals[i]!
+      vProj = getVerticesProjectionRange(B.vertices, axis)
+      cProj = getCircleProjectionRange(this.center, this.radius, axis)
+      if (!hasProjectionOverlap(cProj, vProj)) {
+        return
+      }
+      const depth = Math.min(cProj.max - vProj.min, vProj.max - cProj.min)
+      if (depth < contact.depth) {
+        contact.depth = depth
+        contact.normal = axis
+      }
+    }
+    const closestV = getClosestVertexToPoint(B.vertices, this.center)
+    axis = normal(closestV, this.center)
+    vProj = getVerticesProjectionRange(B.vertices, axis)
+    cProj = getCircleProjectionRange(this.center, this.radius, axis)
+    if (!hasProjectionOverlap(cProj, vProj)) {
       return
     }
-    const incFace = B.getTransformedFaceAtIndex(pen.faceIndex)
-    const tC = this.centroid.add(this.transform.position)
-    // console.log('tC', tC, incFace)
-    const dots: [number, number] = [
-      tC.subtract(incFace[0]).dot(incFace[1].subtract(incFace[0])),
-      tC.subtract(incFace[1]).dot(incFace[0].subtract(incFace[1])),
-    ]
-    // console.log(dots)
-    let N: Vector, contactPoint: Point
-    if (dots[0] <= 0) {
-      // Closer to face's origin
-      if (distanceSquared(tC, incFace[0]) > this.radius * this.radius) {
-        return
-      }
-      N = incFace[0].subtract(tC).normalize()
-      contactPoint = incFace[0]
-    } else if (dots[1] <= 0) {
-      // Closer to face's end
-      if (distanceSquared(tC, incFace[1]) > this.radius * this.radius) {
-        return
-      }
-      N = incFace[1].subtract(tC).normalize()
-      contactPoint = incFace[1]
-      console.log(contactPoint, N)
-    } else {
-      // Closer to another point along the face
-      N = B.getRotatedNormal(pen.faceIndex).multiplyScalar(-1)
-      contactPoint = tC.add(N.multiplyScalar(this.radius + pen.value))
+    const depth = Math.min(vProj.max - cProj.min, cProj.max - vProj.min)
+    if (depth < contact.depth) {
+      contact.depth = depth
+      contact.normal = axis
     }
-    return {
-      penetration: pen.value,
-      normal: N,
-      points: [contactPoint],
+    const dir = deltaPos(B.center, this.center)
+    if (dir.dot(contact.normal) < 0) {
+      invert(contact.normal)
     }
+
+    return contact
+  }
+
+  protected updateVertices(): void {
+    this.aabb.min.x = this.position.x - this.radius
+    this.aabb.min.y = this.position.y - this.radius
+    this.aabb.max.x = this.position.x + this.radius
+    this.aabb.max.y = this.position.y + this.radius
   }
 
   private getPolygonPenetration(
     polygon: PolygonCollider,
   ): { value: number; faceIndex: number } | undefined {
     const pen = { value: -Infinity, faceIndex: -1 }
-    const tC = this.centroid.add(this.transform.position)
-    const N = new Vector()
+    // const tC = this.centroid.add(this.transform.position)
     const tV = new Point()
     for (let i = 0; i < polygon.vertices.length; i++) {
-      polygon.getRotatedNormal(i, N)
-      polygon.getTransformedVertex(i, tV)
-      const penAtV = N.dot(tC.subtract(tV))
-      if (penAtV > this.radius) {
-        return
-      }
-      if (penAtV > pen.value) {
-        pen.value = penAtV - this.radius
-        pen.faceIndex = i
-      }
+      const axis = polygon.normals[i]!.orthogonalize()
+
+      // if (penAtV > this.radius) {
+      //   return
+      // }
+      // if (penAtV > pen.value) {
+      //   pen.value = penAtV - this.radius
+      //   pen.faceIndex = i
+      // }
     }
     return pen
   }
@@ -133,7 +200,6 @@ export class CircleCollider extends Collider {
 
 export class PolygonCollider extends Collider {
   constructor(vertices: number[]) {
-    const centroid = calculateCentroid(vertices)
     const _vertices: Point[] = []
     for (let i = 0; i < vertices.length; i += 2) {
       _vertices.push(new Point(vertices[i]!, vertices[i + 1]!))
@@ -145,39 +211,35 @@ export class PolygonCollider extends Collider {
       const face: Vector = vi1.subtract(vi)
       normals.push(new Vector(face.y, -face.x).normalize()) // => -90º rotation => [0 1; -1 0] x [fX; fY] = [fY;-fX]
     }
-    super(_vertices, normals, centroid)
+    super(_vertices, normals, calculateCentroid(vertices))
   }
 
-  testForContactWithCircle(B: CircleCollider): Contact | undefined {
-    const contact = B.testForContactWithPolygon(this)
-    if (contact) {
-      contact.normal.multiplyScalar(-1, contact.normal)
-    }
-    return contact
+  getContactWithCircle(B: CircleCollider): Contact | undefined {
+    return B.getContactWithPolygon(this)
   }
 
-  testForContactWithPolygon(B: PolygonCollider): Contact | undefined {
+  getContactWithPolygon(B: PolygonCollider): Contact | undefined {
     const A = this
     const penAB = PolygonCollider.getPenetration(A, B)
     const penBA = PolygonCollider.getPenetration(B, A)
     if (!penAB || !penBA) {
       return
     }
-    type Contact = { refFace: Vector[]; incFace: Vector[]; penetration: number }
-    let contact: Contact
-    if (penAB > penBA) {
-      contact = {
-        refFace: A.getTransformedFaceAtIndex(penAB.faceIndex),
-        incFace: B.getTransformedFaceAtIndex(penBA.faceIndex),
-        penetration: penAB.value,
-      }
-    } else {
-      contact = {
-        refFace: B.getTransformedFaceAtIndex(penBA.faceIndex),
-        incFace: A.getTransformedFaceAtIndex(penAB.faceIndex),
-        penetration: penBA.value,
-      }
-    }
+    // type Contact = { refFace: Vector[]; incFace: Vector[]; penetration: number }
+    // let contact: Contact
+    // if (penAB > penBA) {
+    //   contact = {
+    //     refFace: A.getFaceAtIndex(penAB.faceIndex),
+    //     incFace: B.getFaceAtIndex(penBA.faceIndex),
+    //     penetration: penAB.value,
+    //   }
+    // } else {
+    //   contact = {
+    //     refFace: B.getFaceAtIndex(penBA.faceIndex),
+    //     incFace: A.getFaceAtIndex(penAB.faceIndex),
+    //     penetration: penBA.value,
+    //   }
+    // }
     // const refFaceN = new Vector(contact.refFace.y, -contact.refFace.x).normalize()
   }
 
@@ -187,11 +249,12 @@ export class PolygonCollider extends Collider {
   getTransformedVertex(index: number, output?: Point) {
     return this.transform.matrix.apply(this.vertices[index]!, output)
   }
-  getTransformedFaceAtIndex(index: number): [Vector, Vector] {
-    return [
-      this.getTransformedVertex(index),
-      this.getTransformedVertex((index + 1) % this.vertices.length),
+  getFaceAtIndex(index: number): { edges: [Vector, Vector]; delta: Vector } {
+    const edges: [Vector, Vector] = [
+      this.vertices[index]!,
+      this.vertices[(index + 1) % this.vertices.length]!,
     ]
+    return { edges, delta: edges[1].subtract(edges[0]) }
   }
 
   private static getPenetration(

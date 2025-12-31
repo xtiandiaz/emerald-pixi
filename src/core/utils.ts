@@ -1,4 +1,4 @@
-import type { Bounds, Point } from 'pixi.js'
+import type { Bounds, Point, PointData } from 'pixi.js'
 import { Direction, Vector } from '.'
 
 export function sign(value: number): number {
@@ -11,6 +11,24 @@ export function clamp(value: number, min: number, max: number): number {
 
 export function lerp(from: any, to: any, at: number): any {
   return from + (to - from) * at
+}
+
+export function deltaPos(a: PointData, b: PointData, outVector?: Vector): Vector {
+  if (!outVector) {
+    outVector = new Vector()
+  }
+  outVector.x = b.x - a.x
+  outVector.y = b.y - a.y
+  return outVector
+}
+
+export function normal(a: PointData, b: PointData, outVector?: Vector): Vector {
+  return deltaPos(a, b, outVector).normalize(outVector)
+}
+
+export function invert(v: Vector) {
+  v.x *= -1
+  v.y *= -1
 }
 
 export const directionVector = (d: Direction) => {

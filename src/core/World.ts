@@ -46,6 +46,9 @@ export class World extends Container {
       .map((e) => ({ e, c: e.getComponent(type)! }))
   }
 
+  getComponent<T extends Component>(entityId: number, type: SomeComponent<T>): T | undefined {
+    return this.entities.get(entityId)?.getComponent(type)
+  }
   getComponents<T extends Component>(type: SomeComponent<T>): T[] {
     const cs: T[] = []
     this.entities.forEach((e) => {

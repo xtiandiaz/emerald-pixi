@@ -11,41 +11,53 @@ import {
   type CollisionLayerMap,
 } from '../physics'
 import { Body } from '../components'
-import { CollisionSensorTriggered, EntityAdded } from '../signals'
+import { CollisionSensorTriggered, EntityAdded, EntityRemoved } from '../signals'
 import { connectContainerEvent } from '../input'
 import { Game } from '../game'
+import { PhysicsEngine } from '../physics/PhysicsEngine'
 
 export interface PhysicsSystemOptions {
   iterations: number
+  PPM?: number // Pixels Per Meter
   gravity?: Gravity
   collisionLayerMap?: CollisionLayerMap
-  _rendersColliders: boolean
+  rendersColliders: boolean
 }
 
 export class PhysicsSystem extends System {
   private gravity: Gravity
+  private PPM: number
   private collisionLayerMap?: CollisionLayerMap
   private options: PhysicsSystemOptions
+  private engine!: PhysicsEngine
   private _cg?: Graphics
 
   constructor(options?: Partial<PhysicsSystemOptions>) {
     super()
 
     this.gravity = options?.gravity ?? {
-      vector: new Vector(0, 9.81),
-      scale: 0.001,
+      vector: new Vector(0, 1),
+      value: 9.81, // m/s^2
     }
+    this.PPM = options?.PPM ?? 10
     this.collisionLayerMap = options?.collisionLayerMap
 
     this.options = {
-      iterations: 4,
-      _rendersColliders: false,
+      iterations: 12,
+      rendersColliders: false,
       ...options,
     }
   }
 
   init(world: World, hud: Container, sb: SignalBus): void {
-    if (this.options._rendersColliders) {
+    this.engine = new PhysicsEngine(
+      world.getEntitiesWithComponent(Body).map(({ e, c }) => [e.id, c]),
+      this.gravity,
+      this.collisionLayerMap,
+      this.PPM,
+    )
+
+    if (this.options.rendersColliders) {
       this._cg = new Graphics()
       world.addChild(this._cg)
     }
@@ -58,12 +70,15 @@ export class PhysicsSystem extends System {
     world.interactive = true
     this.connections.push(
       sb.connect(EntityAdded, (s) => {
-        const e = world.getEntity(s.entityId)!
-        const rb = e.getComponent(Body)
-        if (rb) {
-          e.position.copyFrom(rb.position)
-          e.rotation = rb.rotation
+        const b = world.getComponent(s.entityId, Body)
+        if (b) {
+          this.engine.addBody(s.entityId, b)
+          // e.position.copyFrom(b.position)
+          // e.rotation = b.rotation
         }
+      }),
+      sb.connect(EntityRemoved, (s) => {
+        this.engine.removeBody(s.entityId)
       }),
       connectContainerEvent('globalmousemove', world, (e) => {
         const b = player.getComponent(Body)!
@@ -77,49 +92,32 @@ export class PhysicsSystem extends System {
     const e_bs = world.getEntitiesWithComponent(Body)
     const collisions: Collision[] = []
 
-    for (let i = 0; i < this.options.iterations; i++) {
-      collisions.length = 0
+    this.engine.step(this.options.iterations, dT)
 
-      for (const { c: b } of e_bs) {
-        this.updateBody(b, dT)
-      }
-      for (let i = 0; i < e_bs.length; i++) {
-        const { c: A } = e_bs[i]!
+    // const bodies = world.getComponents(Body)
+    // for (let i = 0; i < this.options.iterations; i++) {
+    //   collisions.length = 0
 
-        for (let j = i + 1; j < e_bs.length; j++) {
-          const { c: B } = e_bs[j]!
-          const collision = A.testForCollision(B)
-          // TODO Add check of collision-ness according to layer-map
-          if (collision) {
-            collisions.push(collision)
-          }
-        }
-      }
-      this.resolveCollisions(collisions)
-      this.separateBodies(collisions)
+    //   for (let i = 0; i < e_bs.length; i++) {
+    //     const { c: A } = e_bs[i]!
 
-      // Reflect body positions on entities for rendering
-      for (const { e, c: b } of e_bs) {
-        e.position.set(b.position.x, b.position.y)
-      }
+    //     for (let j = i + 1; j < e_bs.length; j++) {
+    //       const { c: B } = e_bs[j]!
+    //       const collision = A.testForCollision(B)
+    //       // TODO Add check of collision-ness according to layer-map
+    //       if (collision) {
+    //         collisions.push(collision)
+    //       }
+    //     }
+    //   }
+    //   this.resolveCollisions(collisions)
+    //   this.separateBodies(collisions)
+
+    // }
+    // Reflect body positions on entities for rendering
+    for (const { e, c: b } of e_bs) {
+      e.position.set(b.position.x, b.position.y)
     }
-  }
-
-  private updateBody(body: Body, dT: number) {
-    if (body.isStatic) {
-      return
-    }
-    if (!body.isKinematic) {
-      const forces = this.gravity.vector.multiplyScalar(body.invMass * this.gravity.scale)
-      forces.x += body.force.x * body.invMass
-      forces.y += body.force.y * body.invMass
-      body.force.set(0, 0)
-
-      body.velocity.x += forces.x * dT
-      body.velocity.y += forces.y * dT
-    }
-    body.position.x += body.velocity.x * dT
-    body.position.y += body.velocity.y * dT
   }
 
   private resolveCollisions(collisions: Collision[]) {
@@ -153,7 +151,7 @@ export class PhysicsSystem extends System {
   }
 
   private separateBodies(collisions: Collision[]) {
-    for (const { A, B, penetration, normal, sumInvMasses } of collisions) {
+    for (const { A, B, depth: penetration, normal, sumInvMasses } of collisions) {
       // Account for the masses in the correction (https://timallanwheeler.com/blog/2024/08/01/2d-collision-detection-and-resolution/)
       const relCorrection = normal.multiplyScalar(
         -penetration * sumInvMasses * (A.isStatic || B.isStatic ? 1 : 0.5),

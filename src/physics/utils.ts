@@ -1,6 +1,47 @@
+import type { Point, PointData } from 'pixi.js'
 import { Body } from '../components'
-import { Vector, type Entity } from '../core'
-import type { Contact, CollisionLayerMap } from './types'
+import { Vector, type Range, type Entity } from '../core'
+import type { Contact, AABB } from './types'
+
+export function isAABBIntersection(a: AABB, b: AABB): boolean {
+  return !(a.max.x < b.min.x || a.max.y < b.min.y || b.max.x < a.min.x || b.max.y < a.min.y)
+}
+
+export function hasProjectionOverlap(a: Range, b: Range): boolean {
+  return !(a.max <= b.min || b.max <= a.min)
+}
+
+export function getClosestVertexToPoint(vertices: Point[], p: PointData): Point {
+  let index = -1
+  let distSqrd = Infinity
+  for (let i = 0; i < vertices.length; i++) {
+    const dSq = vertices[i]!.subtract(p).magnitudeSquared()
+    if (dSq < distSqrd) {
+      distSqrd = dSq
+      index = i
+    }
+  }
+  return vertices[index]!
+}
+
+export function getVerticesProjectionRange(vertices: PointData[], axis: Vector): Range {
+  const range: Range = { min: Infinity, max: -Infinity }
+  let proj: number
+
+  for (let i = 0; i < vertices.length; i++) {
+    proj = vertices[i]!.x * axis.x + vertices[i]!.y * axis.y
+    range.min = Math.min(range.min, proj)
+    range.max = Math.max(range.max, proj)
+  }
+  return range
+}
+
+export function getCircleProjectionRange(position: PointData, radius: number, axis: Vector): Range {
+  const dot = axis.x * position.x + axis.y * position.y
+  const proj: [number, number] = [dot - radius, dot + radius]
+
+  return proj[0] < proj[1] ? { min: proj[0], max: proj[1] } : { min: proj[1], max: proj[0] }
+}
 
 export function testForCollision(A: Body, B: Body): Contact | undefined {
   // const contact = A.shape.testForContact(B.shape)

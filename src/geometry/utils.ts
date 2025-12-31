@@ -36,23 +36,6 @@ export function testForAABBWithDiagonalVertices(a: number[], b: number[]): boole
 
 // export function capSegment(a: Vector, b: Vector, )
 
-export function getPolygonProjectionRange(vertices: number[], axis: Vector): Range {
-  const range = { min: Infinity, max: -Infinity }
-  let proj: number
-  for (let j = 0; j < vertices.length; j += 2) {
-    proj = vertices[j]! * axis.x + vertices[j + 1]! * axis.y
-    range.min = Math.min(range.min, proj)
-    range.max = Math.max(range.max, proj)
-  }
-  return range
-}
-
-export function getCircleProjectionRange(x: number, y: number, r: number, axis: Vector): Range {
-  const dot = axis.x * x + axis.y * y
-
-  return { min: dot - r, max: dot + r }
-}
-
 // export function updateEntityColliderShapesTransform(e_cs: { e: Entity; c: Collider<any> }[]) {
 //   for (const { e, c } of e_cs) {
 //     const rb = e.getComponent(Body)

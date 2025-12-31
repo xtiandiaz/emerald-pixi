@@ -1,4 +1,4 @@
-import { Application, Ticker, UPDATE_PRIORITY, type ApplicationOptions } from 'pixi.js'
+import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
 import { Scene, Screen, World, type SignalBus, type Disconnectable, clamp } from '../core'
 import { SignalController } from '../controllers'
 import { EntityAdded, EntityRemoved, ScreenResized } from '../signals'
@@ -9,8 +9,6 @@ export interface GameOptions {
 }
 
 export class Game<State extends GameState> extends Application {
-  static readonly PPM = 10
-
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
@@ -23,8 +21,6 @@ export class Game<State extends GameState> extends Application {
   ) {
     super()
 
-    this.stage.scale = Game.PPM
-
     this.stage.addChild(this.world)
   }
 
@@ -32,12 +28,12 @@ export class Game<State extends GameState> extends Application {
     await super.init(options)
 
     this.fixedTimeStep = {
-      step: 1 / this.ticker.FPS,
+      step: 1 / 60,
       accTime: 0,
     }
 
-    this.world.onEntityAdded = (id) => this.signalController.emit(new EntityAdded(id))
-    this.world.onEntityRemoved = (id) => this.signalController.emit(new EntityRemoved(id))
+    this.world.onEntityAdded = (id) => this.signalController.queue(new EntityAdded(id))
+    this.world.onEntityRemoved = (id) => this.signalController.queue(new EntityRemoved(id))
 
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
@@ -52,7 +48,7 @@ export class Game<State extends GameState> extends Application {
     }
   }
 
-  connect?(sb: SignalBus): Disconnectable[]
+  connect?(signalBus: SignalBus): Disconnectable[]
 
   deinit() {
     this.connections.forEach((d) => d.disconnect())
@@ -89,7 +85,7 @@ export class Game<State extends GameState> extends Application {
 
     while (this.fixedTimeStep.accTime >= this.fixedTimeStep.step) {
       this.scene?.systems.forEach((s) => {
-        s.fixedUpdate?.(this.world, this.signalController, 10 * this.fixedTimeStep.step)
+        s.fixedUpdate?.(this.world, this.signalController, this.fixedTimeStep.step)
       })
       this.fixedTimeStep.accTime -= this.fixedTimeStep.step
     }
@@ -111,8 +107,8 @@ export class Game<State extends GameState> extends Application {
   }
 
   private updateScreen() {
-    Screen._w = this.renderer.width / Game.PPM
-    Screen._h = this.renderer.height / Game.PPM
+    Screen._w = this.renderer.width
+    Screen._h = this.renderer.height
 
     this.signalController.queue(new ScreenResized(Screen._w, Screen._h))
   }
