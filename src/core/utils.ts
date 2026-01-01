@@ -9,26 +9,12 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-export function lerp(from: any, to: any, at: number): any {
+export function lerp(from: number, to: number, at: number): number {
   return from + (to - from) * at
 }
 
-export function deltaPos(a: PointData, b: PointData, outVector?: Vector): Vector {
-  if (!outVector) {
-    outVector = new Vector()
-  }
-  outVector.x = b.x - a.x
-  outVector.y = b.y - a.y
-  return outVector
-}
-
-export function normal(a: PointData, b: PointData, outVector?: Vector): Vector {
-  return deltaPos(a, b, outVector).normalize(outVector)
-}
-
-export function invert(v: Vector) {
-  v.x *= -1
-  v.y *= -1
+export function average(...values: number[]): number {
+  return values.reduce((sum, n) => sum + n, 0) / values.length
 }
 
 export const directionVector = (d: Direction) => {

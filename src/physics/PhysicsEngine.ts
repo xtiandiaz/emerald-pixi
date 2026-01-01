@@ -1,8 +1,6 @@
 import type { Body } from '../components'
-import type { Vector } from '../core'
-import type { Contact, CollisionLayerMap, Gravity } from './types'
-
-type IntersectionPair = [number, number]
+import { Vector, Collision } from '../core'
+import { Physics } from './'
 
 export class PhysicsEngine {
   private bodyMap: Map<number, Body>
@@ -10,9 +8,9 @@ export class PhysicsEngine {
 
   constructor(
     bodyEntries: [number, Body][],
-    private gravity: Gravity,
-    private layerMap?: CollisionLayerMap,
-    private PPM: number = 10,
+    private gravity: Physics.Gravity,
+    private PPM: number,
+    private layerMap?: Collision.LayerMap,
   ) {
     this.bodyMap = new Map(bodyEntries)
     this.bodies = [...this.bodyMap.entries()]
@@ -38,11 +36,12 @@ export class PhysicsEngine {
       for (const [idA, idB] of pairs) {
         const A = this.bodyMap.get(idA)!
         const B = this.bodyMap.get(idB)!
-        const contact = A.collider.getContact(B.collider)
-        if (!contact) {
+        const collision = A.findCollision(B)
+        if (!collision) {
           continue
         }
-        this.separateBodies(A, B, contact.normal.multiplyScalar(contact.depth))
+        this.separateBodies(A, B, collision.normal.multiplyScalar(collision.depth))
+        this.resolveCollision(A, B, collision)
       }
     }
   }
@@ -53,22 +52,30 @@ export class PhysicsEngine {
         continue
       }
       if (!b.isKinematic) {
-        const forces = this.gravity.vector.multiplyScalar(this.gravity.value * b.invMass)
+        // TODO Apply inv-mass after solving the meters vs pixels conundrum
+        const forces = this.gravity.vector.multiplyScalar(this.gravity.value /* * b.invMass */)
         forces.x += b.force.x / dT
         forces.y += b.force.y / dT
         b.force.set(0, 0)
 
-        b.velocity.x += forces.x * b.invMass * dT
-        b.velocity.y += forces.y * b.invMass * dT
+        b.velocity.x += forces.x /* * b.invMass */ * dT
+        b.velocity.y += forces.y /* * b.invMass */ * dT
       }
-
       b.transform.position.x += b.velocity.x * this.PPM * dT
       b.transform.position.y += b.velocity.y * this.PPM * dT
     }
   }
 
-  private getIntersectionPairs(): IntersectionPair[] {
-    const pairs: IntersectionPair[] = []
+  private canCollide(layerA?: number, layerB?: number) {
+    return (
+      !this.layerMap ||
+      (layerA && this.layerMap.get(layerA) && layerB) ||
+      (layerB && this.layerMap.get(layerB) && layerA)
+    )
+  }
+
+  private getIntersectionPairs(): Collision.AABBIntersectionPair[] {
+    const pairs: Collision.AABBIntersectionPair[] = []
 
     for (let i = 0; i < this.bodies.length - 1; i++) {
       const [idA, A] = this.bodies[i]!
@@ -76,6 +83,9 @@ export class PhysicsEngine {
       for (let j = i + 1; j < this.bodies.length; j++) {
         const [idB, B] = this.bodies[j]!
 
+        if (A.isStatic && B.isStatic) {
+          continue
+        }
         if (this.canCollide(A.layer, B.layer) && A.collider.hasAABBIntersection(B.collider)) {
           pairs.push([idA, idB])
         }
@@ -99,11 +109,61 @@ export class PhysicsEngine {
     }
   }
 
-  private canCollide(layerA?: number, layerB?: number) {
-    return (
-      !this.layerMap ||
-      (layerA && this.layerMap.get(layerA) && layerB) ||
-      (layerB && this.layerMap.get(layerB) && layerA)
-    )
+  /*  
+    Collision Response: https://en.wikipedia.org/wiki/Collision_response#Impulse-based_reaction_model
+  */
+  private resolveCollision(A: Body, B: Body, collision: Physics.Collision) {
+    const rA = new Vector()
+    const rB = new Vector()
+    const rAOrth = new Vector()
+    const rBOrth = new Vector()
+    // Velocities of (shared) point: vpi = vi + ⍵i ⨯ ri
+    const vpA = new Vector()
+    const vpB = new Vector()
+    // Relative velocity: vr = vB - vA
+    const vr = new Vector()
+    const tangent = new Vector()
+
+    for (const collisionPoint of collision.points) {
+      const N = collision.normal
+
+      collisionPoint.subtract(A.position, rA)
+      collisionPoint.subtract(B.position, rB)
+      rA.orthogonalize(rAOrth)
+      rB.orthogonalize(rBOrth)
+
+      A.velocity.add(rAOrth.multiplyScalar(A.angularVelocity), vpA)
+      B.velocity.add(rBOrth.multiplyScalar(B.angularVelocity), vpB)
+
+      vpB.subtract(vpA, vr)
+
+      const contactVelMag = vr.dot(N)
+      if (contactVelMag > 0) {
+        // Already separating...
+        return
+      }
+
+      // const rAOrthDotTan = rAOrth.dot(tangent)
+      // const rBOrthDotTan = rBOrth.dot(tangent)
+
+      // Reaction impulse (jr)
+      let jr = -(1 + collision.restitution) * contactVelMag
+      const rA_x_rAcrossN_x_invI = rA.multiplyScalar(rA.cross(N) * A.invInertia)
+      const rB_x_rBcrossN_x_invI = rB.multiplyScalar(rB.cross(N) * B.invInertia)
+      jr /= A.invMass + B.invMass + N.dot(rA_x_rAcrossN_x_invI.add(rB_x_rBcrossN_x_invI))
+      jr /= collision.points.length
+
+      const impulse = N.multiplyScalar(jr)
+      if (!A.isStatic) {
+        A.velocity.x -= impulse.x * A.invMass
+        A.velocity.y -= impulse.y * A.invMass
+        A.angularVelocity -= jr * rA.cross(N) * A.invInertia
+      }
+      if (!B.isStatic) {
+        B.velocity.x += impulse.x * B.invMass
+        B.velocity.y += impulse.y * B.invMass
+        B.angularVelocity += jr * rA.cross(N) * B.invInertia
+      }
+    }
   }
 }

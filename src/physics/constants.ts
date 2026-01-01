@@ -1,3 +1,0 @@
-// Collision
-export const PENETRATION_ALLOWANCE = 0.05
-export const PENETRATION_PERCENTAGE_TO_CORRECT = 0.4

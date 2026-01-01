@@ -1,8 +1,6 @@
-import { ObservablePoint, Point, Transform, type PointData } from 'pixi.js'
-import { Component, Vector } from '../core'
-import type { Collider } from '../physics/colliders'
-import { type Contact, type Collision } from '../physics'
-import { Game } from '../game'
+import { Transform, type PointData } from 'pixi.js'
+import { average, clamp, Component, Vector, Collider } from '../core'
+import { Physics } from '../physics'
 
 export interface BodyOptions {
   isStatic: boolean
@@ -12,7 +10,7 @@ export interface BodyOptions {
   position: PointData
   rotation: number
   restitution: number
-  mass: number
+  friction: Physics.Friction
 }
 
 export class Body extends Component implements BodyOptions {
@@ -22,6 +20,8 @@ export class Body extends Component implements BodyOptions {
 
   readonly velocity = new Vector()
   readonly force = new Vector()
+
+  angularVelocity = 0
   torque = 0
 
   readonly transform = new Transform()
@@ -33,8 +33,11 @@ export class Body extends Component implements BodyOptions {
   }
 
   readonly mass: number
-  readonly invMass: number // inverted
+  readonly invMass: number
+  readonly inertia: number
+  readonly invInertia: number
   restitution: number
+  friction: Physics.Friction
 
   constructor(
     public readonly collider: Collider,
@@ -45,9 +48,15 @@ export class Body extends Component implements BodyOptions {
     this.isStatic = options?.isStatic ?? false
     this.isKinematic = options?.isKinematic ?? false
 
-    this.mass = options?.mass ?? 1
-    this.invMass = this.mass ? 1 / this.mass : 1
-    this.restitution = options?.restitution ?? 0.2
+    this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
+    this.invMass = this.mass ? 1 / this.mass : 0
+    this.inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this.mass)
+    this.invInertia = this.inertia ? 1 / this.inertia : 0
+    this.restitution = clamp(options?.restitution ?? 0.2, 0, 1)
+    this.friction = options?.friction ?? {
+      static: 0.5,
+      dynamic: 0.3,
+    }
 
     this.transform = new Transform({
       observer: {
@@ -63,19 +72,19 @@ export class Body extends Component implements BodyOptions {
     this.force.y += y
   }
 
-  getCollision(other: Body): Collision | undefined {
-    const contact = this.collider.getContact(other.collider)
-    if (!contact) {
+  findCollision(other: Body): Physics.Collision | undefined {
+    const result = this.collider.findCollision(other.collider, true)
+    if (!result || !result.points) {
       return
     }
-    console.log(contact)
     return {
-      A: this,
-      B: other,
-      points: [],
-      restitution: Math.max(this.restitution, other.restitution),
-      sumInvMasses: this.invMass + other.invMass,
-      ...contact,
+      points: result.points,
+      restitution: average(this.restitution, other.restitution),
+      friction: {
+        static: average(this.friction.static, other.friction.static),
+        dynamic: average(this.friction.dynamic, other.friction.dynamic),
+      },
+      ...result,
     }
   }
 }
