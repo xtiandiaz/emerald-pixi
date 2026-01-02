@@ -1,6 +1,6 @@
 import { Transform, type PointData } from 'pixi.js'
 import { average, clamp, Component, Vector, Collider } from '../core'
-import { Physics } from '../'
+import { Collision, Physics } from '../'
 
 export interface BodyOptions {
   isStatic: boolean
@@ -13,12 +13,10 @@ export interface BodyOptions {
   friction: Physics.Friction
 }
 
-export type EntityBody = [number, Body]
-
-export class Body extends Component implements BodyOptions {
+export class Body extends Component implements Collision.Component, BodyOptions {
   isStatic: boolean
   isKinematic: boolean
-  layer?: number
+  layer: number
 
   readonly velocity = new Vector()
   readonly force = new Vector()
@@ -49,6 +47,7 @@ export class Body extends Component implements BodyOptions {
 
     this.isStatic = options?.isStatic ?? false
     this.isKinematic = options?.isKinematic ?? false
+    this.layer = options?.layer ?? 1
 
     this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
     this.invMass = this.mass ? 1 / this.mass : 0

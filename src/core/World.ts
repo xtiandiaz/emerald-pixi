@@ -1,5 +1,5 @@
-import { Body, Skin, type EntityBody } from '../components'
-import { Component, type SomeComponent } from './'
+import { Body, Skin } from '../components'
+import { Component, type EntityComponent, type SomeComponent } from './'
 import { Container } from 'pixi.js'
 
 export class World extends Container {
@@ -9,7 +9,7 @@ export class World extends Container {
   private taggedEntities = new Map<string, Set<number>>()
   private bodies = new Map<number, Body>()
 
-  get eBodies(): EntityBody[] {
+  get eBodies(): EntityComponent<Body>[] {
     return [...this.bodies.entries()]
   }
 
@@ -58,7 +58,7 @@ export class World extends Container {
     }
     cs.set(component.constructor.name, component)
     if (component instanceof Skin) {
-      this.addChild(component._dermis)
+      this.addChild(component.dermis)
     } else if (component instanceof Body) {
       this.bodies.set(entityId, component)
     }
@@ -123,7 +123,7 @@ export class World extends Container {
 
   private _removeComponent<T extends Component>(id: number, c: T) {
     if (c instanceof Skin) {
-      this.removeChild(c._dermis)
+      this.removeChild(c.dermis)
     } else if (c instanceof Body) {
       this.bodies.delete(id)
     }

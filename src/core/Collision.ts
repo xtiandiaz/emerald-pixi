@@ -1,5 +1,5 @@
 import type { Point, PointData } from 'pixi.js'
-import type { Range, Vector } from '../core'
+import type { Collider, Range, Vector, Component as CoreComponent, EntityComponent } from '../core'
 import { Geometry } from './Geometry'
 
 export namespace Collision {
@@ -8,7 +8,12 @@ export namespace Collision {
     max: PointData
   }
 
-  export type AABBIntersectionPair = [number, number]
+  export type AABBIntersectionIndexPair = [idA: number, idB: number]
+
+  export interface Component extends CoreComponent {
+    collider: Collider
+    layer: number
+  }
 
   export interface Result {
     depth: number
@@ -79,5 +84,24 @@ export namespace Collision {
       }
     }
     return closestPoint
+  }
+
+  export function findAABBIntersectionIndexPairs(
+    collisionComponents: Collision.Component[],
+    canCollide: (layerA: number, layerB: number) => boolean,
+  ): AABBIntersectionIndexPair[] {
+    const pairs: AABBIntersectionIndexPair[] = []
+    let A!: Collision.Component, B!: Collision.Component
+
+    for (let i = 0; i < collisionComponents.length - 1; i++) {
+      A = collisionComponents[i]!
+      for (let j = i + 1; j < collisionComponents.length; j++) {
+        B = collisionComponents[j]!
+        if (canCollide(A.layer, B.layer) && A.collider.hasAABBIntersection(B.collider)) {
+          pairs.push([i, j])
+        }
+      }
+    }
+    return pairs
   }
 }

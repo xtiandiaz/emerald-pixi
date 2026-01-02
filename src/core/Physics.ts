@@ -1,19 +1,16 @@
 import type { Point } from 'pixi.js'
-import { CircleCollider, Collision, Vector, type Collider } from '.'
-import { type Body, type EntityBody } from '../components'
+import { CircleCollider, Collision, Vector, type Collider, type EntityComponent } from '.'
+import { type Body } from '../components'
 
 export namespace Physics {
   export interface Gravity {
     vector: Vector
     value: number
   }
-
   export interface Friction {
     static: number
     dynamic: number
   }
-
-  export type IntersectionPair = [Body, Body]
 
   export interface Collision extends Collision.Result {
     points: Point[]
@@ -24,7 +21,7 @@ export namespace Physics {
   export interface Options {
     gravity: Gravity
     iterations: number
-    PPM: number
+    PPM: number // Pixels Per Meter
     collisionLayerMap?: Collision.LayerMap
   }
 
@@ -46,76 +43,29 @@ export namespace Physics {
     }
   }
 
-  export function step(eBodies: EntityBody[], options: Options, dT: number) {
-    dT /= options.iterations
-    for (let i = 0; i < options.iterations; i++) {
-      stepBodies(eBodies, options.gravity, options.PPM, dT)
-
-      const pairs = findIntersectionPairs(eBodies, options.collisionLayerMap)
-
-      for (const [A, B] of pairs) {
-        const collision = A.findCollision(B)
-        if (!collision) {
-          continue
-        }
-        separateBodies(A, B, collision.normal.multiplyScalar(collision.depth))
-        resolveCollision(A, B, collision)
-      }
+  export function stepBody(body: Body, gravity: Gravity, PPM: number, dT: number) {
+    if (body.isStatic) {
+      return
     }
-  }
+    if (!body.isKinematic) {
+      // TODO Apply inv-mass after solving the meters vs pixels conundrum
+      const forces = gravity.vector.multiplyScalar(gravity.value /* * body.invMass */)
+      forces.x += body.force.x / dT
+      forces.y += body.force.y / dT
+      body.force.set(0, 0)
 
-  function stepBodies(eBodies: EntityBody[], gravity: Gravity, PPM: number, dT: number) {
-    for (const [_, b] of eBodies) {
-      if (b.isStatic) {
-        continue
-      }
-      if (!b.isKinematic) {
-        // TODO Apply inv-mass after solving the meters vs pixels conundrum
-        const forces = gravity.vector.multiplyScalar(gravity.value /* * b.invMass */)
-        forces.x += b.force.x / dT
-        forces.y += b.force.y / dT
-        b.force.set(0, 0)
-
-        b.velocity.x += forces.x /* * b.invMass */ * dT
-        b.velocity.y += forces.y /* * b.invMass */ * dT
-      }
-      b.transform.position.x += b.velocity.x * PPM * dT
-      b.transform.position.y += b.velocity.y * PPM * dT
+      body.velocity.x += forces.x /* * body.invMass */ * dT
+      body.velocity.y += forces.y /* * body.invMass */ * dT
     }
+    body.transform.position.x += body.velocity.x * PPM * dT
+    body.transform.position.y += body.velocity.y * PPM * dT
   }
 
-  function canCollide(layerMap?: Collision.LayerMap, layerA?: number, layerB?: number) {
-    return (
-      !layerMap ||
-      (layerA && layerMap.get(layerA) && layerB) ||
-      (layerB && layerMap.get(layerB) && layerA)
-    )
+  export function canCollide(layerA: number, layerB: number, map?: Collision.LayerMap): boolean {
+    return !map || (((map.get(layerA) ?? 0) & layerB) | ((map.get(layerB) ?? 0) & layerA)) != 0
   }
 
-  function findIntersectionPairs(
-    bodies: EntityBody[],
-    layerMap?: Collision.LayerMap,
-  ): IntersectionPair[] {
-    const pairs: IntersectionPair[] = []
-
-    for (let i = 0; i < bodies.length - 1; i++) {
-      const A = bodies[i]![1]
-
-      for (let j = i + 1; j < bodies.length; j++) {
-        const B = bodies[j]![1]
-
-        if (A.isStatic && B.isStatic) {
-          continue
-        }
-        if (canCollide(layerMap, A.layer, B.layer) && A.collider.hasAABBIntersection(B.collider)) {
-          pairs.push([A, B])
-        }
-      }
-    }
-    return pairs
-  }
-
-  function separateBodies(A: Body, B: Body, depth: Vector) {
+  export function separateBodies(A: Body, B: Body, depth: Vector) {
     if (A.isStatic) {
       B.transform.position.x += depth.x
       B.transform.position.y += depth.y
@@ -133,7 +83,7 @@ export namespace Physics {
   /*  
     Collision Response: https://en.wikipedia.org/wiki/Collision_response#Impulse-based_reaction_model
   */
-  function resolveCollision(A: Body, B: Body, collision: Physics.Collision) {
+  export function resolveCollision(A: Body, B: Body, collision: Physics.Collision) {
     const rA = new Vector()
     const rB = new Vector()
     const rAOrth = new Vector()

@@ -1,4 +1,4 @@
-import { Component, System, Signal } from './'
+import { Component, System, Signal, Collider } from './'
 import { Point } from 'pixi.js'
 
 export { Point as Vector }
@@ -18,6 +18,7 @@ export enum Direction {
 export type KeyMap<T> = { [key: string]: T }
 
 export type SomeComponent<T extends Component> = new (...args: any) => T
+export type EntityComponent<T extends Component> = [entityId: number, component: T]
 
 export type SomeSystem<T extends System> = new (...args: any) => T
 

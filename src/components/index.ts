@@ -1,4 +1,3 @@
-export * from './ContainerChildComponent'
 export * from './Body'
 export * from './Skin'
 export * from './GestureTarget'
