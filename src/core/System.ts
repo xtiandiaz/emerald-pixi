@@ -1,4 +1,4 @@
-import type { SignalBus, Disconnectable, Entity, World } from './'
+import type { SignalBus, Disconnectable, World } from './'
 import type { HUD } from '../ui'
 
 export class System {

@@ -1,7 +1,7 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
 import { Scene, Screen, World, type SignalBus, type Disconnectable, clamp } from '../core'
 import { SignalController } from '../controllers'
-import { EntityAdded, EntityRemoved, ScreenResized } from '../signals'
+import { ScreenResized } from '../signals'
 import { type FixedTimeStep, type GameState } from '.'
 
 export interface GameOptions {
@@ -31,9 +31,6 @@ export class Game<State extends GameState> extends Application {
       step: 1 / 60,
       accTime: 0,
     }
-
-    // this.world.onEntityAdded = (id) => this.signalController.queue(new EntityAdded(id))
-    // this.world.onEntityRemoved = (id) => this.signalController.queue(new EntityRemoved(id))
 
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
@@ -102,8 +99,6 @@ export class Game<State extends GameState> extends Application {
     })
 
     this.signalController.emitQueuedSignals()
-
-    this.world.disposeOfRemovedEntities()
   }
 
   private updateScreen() {

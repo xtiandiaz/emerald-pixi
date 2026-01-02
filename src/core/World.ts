@@ -1,13 +1,12 @@
 import { Body, Skin, type EntityBody } from '../components'
-import { Entity, Component, type SomeComponent } from './'
+import { Component, type SomeComponent } from './'
 import { Container } from 'pixi.js'
 
 export class World extends Container {
   private nextEntityId = 1
-  private entities = new Map<number, Entity>()
-  private eTags = new Map<string, Set<number>>()
-  private removedEntities = new Map<number, Entity>()
+  private tags = new Map<number, string>()
   private components = new Map<number, Map<string, Component>>()
+  private taggedEntities = new Map<string, Set<number>>()
   private bodies = new Map<number, Body>()
 
   get eBodies(): EntityBody[] {
@@ -41,10 +40,11 @@ export class World extends Container {
   >(tag: string, c0: T0, c1?: T1, c2?: T2, c3?: T3, c4?: T4): number {
     const id = this.createEntity(c0, c1, c2, c3, c4)
 
-    if (!this.eTags.has(tag)) {
-      this.eTags.set(tag, new Set([id]))
+    this.tags.set(id, tag)
+    if (!this.taggedEntities.has(tag)) {
+      this.taggedEntities.set(tag, new Set([id]))
     } else {
-      this.eTags.get(tag)!.add(id)
+      this.taggedEntities.get(tag)!.add(id)
     }
 
     return id
@@ -64,80 +64,68 @@ export class World extends Container {
     }
     return component
   }
-  removeComponent<T extends Component>(entityId: number, component: SomeComponent<T>): boolean {
+  removeComponent<T extends Component>(entityId: number, type: SomeComponent<T>): boolean {
     const cs = this.components.get(entityId)
     if (!cs) {
       console.error('Undefined entity', entityId)
       return false
     }
-    const c = cs.get(component.name)
-    if (c instanceof Skin) {
-      this.removeChild(c._dermis)
-    } else if (c instanceof Body) {
-      this.bodies.delete(entityId)
-    }
-    return cs.delete(component.name)
+    const c = cs.get(type.name)
+    if (c) this._removeComponent(entityId, c)
+    return cs.delete(type.name)
   }
 
   hasEntity(id: number): boolean {
-    return this.entities.has(id)
-  }
-
-  getEntity(id: number): Entity | undefined {
-    return this.entities.get(id)
-  }
-  getEntitiesByTag(tag: string): Entity[] | undefined {
-    const ids = this.eTags.get(tag)
-    if (ids) {
-      return [...ids].map((id) => this.entities.get(id)!)
-    }
-  }
-  getEntitiesWithComponent<T extends Component>(type: SomeComponent<T>): { e: Entity; c: T }[] {
-    return [...this.entities.values()]
-      .filter((e) => e.hasComponent(type))
-      .map((e) => ({ e, c: e.getComponent(type)! }))
+    return this.components.has(id)
   }
 
   getComponent<T extends Component>(entityId: number, type: SomeComponent<T>): T | undefined {
     return this.components.get(entityId)?.get(type.name) as T
   }
+  getComponentsByTag<T extends Component>(type: SomeComponent<T>, tag: string): T[] {
+    return [...(this.taggedEntities.get(tag) ?? [])]
+      .map((id) => this.components.get(id)!.get(type.name))
+      .filter((c) => c != undefined) as T[]
+  }
   getComponents<T extends Component>(type: SomeComponent<T>): T[] {
-    const cs: T[] = []
-    this.entities.forEach((e) => {
-      if (e.hasComponent(type)) {
-        cs.push(e.getComponent(type)!)
+    const components: T[] = []
+    this.components.forEach((cMap) => {
+      if (cMap.has(type.name)) {
+        components.push(cMap.get(type.name)! as T)
       }
     })
-    return cs
+    return components
   }
 
   removeEntity(id: number) {
-    const e = this.getEntity(id)
-    if (!e) {
-      return
+    const cs = this.components.get(id)
+    if (cs) {
+      cs.forEach((c) => this._removeComponent(id, c))
     }
-    this.entities.delete(id)
+    this.components.delete(id)
 
-    this.removeChild(e)
-    this.removedEntities.set(id, e)
-
-    if (e.tag) {
-      this.eTags.get(e.tag)!.delete(e.id)
+    const tag = this.tags.get(id)
+    if (tag) {
+      this.tags.delete(id)
+      this.taggedEntities.get(tag)!.delete(id)
     }
-    // this.onEntityRemoved?.(id)
-  }
-
-  getRemovedEntity(id: number) {
-    return this.removedEntities.get(id)
-  }
-
-  disposeOfRemovedEntities() {
-    this.removedEntities.clear()
   }
 
   clear() {
-    this.entities.clear()
-    this.disposeOfRemovedEntities()
+    this.tags.clear()
+    this.taggedEntities.clear()
+    this.components.clear()
+    this.bodies.clear()
     this.removeChildren()
+
+    this.nextEntityId = 1
+  }
+
+  private _removeComponent<T extends Component>(id: number, c: T) {
+    if (c instanceof Skin) {
+      this.removeChild(c._dermis)
+    } else if (c instanceof Body) {
+      this.bodies.delete(id)
+    }
   }
 }
