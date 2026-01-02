@@ -1,59 +1,77 @@
-import type { Body } from '../components'
-import { Vector, Collision } from '../core'
-import { Physics } from './'
+import type { Point } from 'pixi.js'
+import { CircleCollider, Collision, Vector, type Collider } from '.'
+import { type Body, type EntityBody } from '../components'
 
-export class PhysicsEngine {
-  private bodyMap: Map<number, Body>
-  private bodies: [number, Body][]
-
-  constructor(
-    bodyEntries: [number, Body][],
-    private gravity: Physics.Gravity,
-    private PPM: number,
-    private layerMap?: Collision.LayerMap,
-  ) {
-    this.bodyMap = new Map(bodyEntries)
-    this.bodies = [...this.bodyMap.entries()]
+export namespace Physics {
+  export interface Gravity {
+    vector: Vector
+    value: number
   }
 
-  addBody(id: number, body: Body) {
-    this.bodyMap.set(id, body)
-    this.bodies = [...this.bodyMap.entries()]
+  export interface Friction {
+    static: number
+    dynamic: number
   }
-  removeBody(id: number) {
-    if (this.bodyMap.delete(id)) {
-      this.bodies = [...this.bodyMap.entries()]
+
+  export type IntersectionPair = [Body, Body]
+
+  export interface Collision extends Collision.Result {
+    points: Point[]
+    restitution: number
+    friction: Friction
+  }
+
+  export interface Options {
+    gravity: Gravity
+    iterations: number
+    PPM: number
+    collisionLayerMap?: Collision.LayerMap
+  }
+
+  /* 
+    Area Density: https://en.wikipedia.org/wiki/Area_density
+  */
+  export function calculateMass(area: number, density: number = 1) {
+    return area * density
+  }
+
+  export function calculateColliderInertia(collider: Collider, mass: number) {
+    if (collider instanceof CircleCollider) {
+      return mass * collider.radius * collider.radius
+    } else {
+      // TODO Find out why
+      const w = collider.aabb.max.x - collider.aabb.min.x
+      const h = collider.aabb.max.y - collider.aabb.min.y
+      return (mass * (w * w + h * h)) / 12
     }
   }
 
-  step(iterations: number, dT: number) {
-    dT /= iterations
-    for (let i = 0; i < iterations; i++) {
-      this.stepAllBodies(dT)
+  export function step(eBodies: EntityBody[], options: Options, dT: number) {
+    dT /= options.iterations
+    for (let i = 0; i < options.iterations; i++) {
+      stepBodies(eBodies, options.gravity, options.PPM, dT)
 
-      const pairs = this.getIntersectionPairs()
+      const pairs = findIntersectionPairs(eBodies, options.collisionLayerMap)
 
-      for (const [idA, idB] of pairs) {
-        const A = this.bodyMap.get(idA)!
-        const B = this.bodyMap.get(idB)!
+      for (const [A, B] of pairs) {
         const collision = A.findCollision(B)
         if (!collision) {
           continue
         }
-        this.separateBodies(A, B, collision.normal.multiplyScalar(collision.depth))
-        this.resolveCollision(A, B, collision)
+        separateBodies(A, B, collision.normal.multiplyScalar(collision.depth))
+        resolveCollision(A, B, collision)
       }
     }
   }
 
-  private stepAllBodies(dT: number) {
-    for (const b of this.bodyMap.values()) {
+  function stepBodies(eBodies: EntityBody[], gravity: Gravity, PPM: number, dT: number) {
+    for (const [_, b] of eBodies) {
       if (b.isStatic) {
         continue
       }
       if (!b.isKinematic) {
         // TODO Apply inv-mass after solving the meters vs pixels conundrum
-        const forces = this.gravity.vector.multiplyScalar(this.gravity.value /* * b.invMass */)
+        const forces = gravity.vector.multiplyScalar(gravity.value /* * b.invMass */)
         forces.x += b.force.x / dT
         forces.y += b.force.y / dT
         b.force.set(0, 0)
@@ -61,40 +79,43 @@ export class PhysicsEngine {
         b.velocity.x += forces.x /* * b.invMass */ * dT
         b.velocity.y += forces.y /* * b.invMass */ * dT
       }
-      b.transform.position.x += b.velocity.x * this.PPM * dT
-      b.transform.position.y += b.velocity.y * this.PPM * dT
+      b.transform.position.x += b.velocity.x * PPM * dT
+      b.transform.position.y += b.velocity.y * PPM * dT
     }
   }
 
-  private canCollide(layerA?: number, layerB?: number) {
+  function canCollide(layerMap?: Collision.LayerMap, layerA?: number, layerB?: number) {
     return (
-      !this.layerMap ||
-      (layerA && this.layerMap.get(layerA) && layerB) ||
-      (layerB && this.layerMap.get(layerB) && layerA)
+      !layerMap ||
+      (layerA && layerMap.get(layerA) && layerB) ||
+      (layerB && layerMap.get(layerB) && layerA)
     )
   }
 
-  private getIntersectionPairs(): Collision.AABBIntersectionPair[] {
-    const pairs: Collision.AABBIntersectionPair[] = []
+  function findIntersectionPairs(
+    bodies: EntityBody[],
+    layerMap?: Collision.LayerMap,
+  ): IntersectionPair[] {
+    const pairs: IntersectionPair[] = []
 
-    for (let i = 0; i < this.bodies.length - 1; i++) {
-      const [idA, A] = this.bodies[i]!
+    for (let i = 0; i < bodies.length - 1; i++) {
+      const A = bodies[i]![1]
 
-      for (let j = i + 1; j < this.bodies.length; j++) {
-        const [idB, B] = this.bodies[j]!
+      for (let j = i + 1; j < bodies.length; j++) {
+        const B = bodies[j]![1]
 
         if (A.isStatic && B.isStatic) {
           continue
         }
-        if (this.canCollide(A.layer, B.layer) && A.collider.hasAABBIntersection(B.collider)) {
-          pairs.push([idA, idB])
+        if (canCollide(layerMap, A.layer, B.layer) && A.collider.hasAABBIntersection(B.collider)) {
+          pairs.push([A, B])
         }
       }
     }
     return pairs
   }
 
-  private separateBodies(A: Body, B: Body, depth: Vector) {
+  function separateBodies(A: Body, B: Body, depth: Vector) {
     if (A.isStatic) {
       B.transform.position.x += depth.x
       B.transform.position.y += depth.y
@@ -112,7 +133,7 @@ export class PhysicsEngine {
   /*  
     Collision Response: https://en.wikipedia.org/wiki/Collision_response#Impulse-based_reaction_model
   */
-  private resolveCollision(A: Body, B: Body, collision: Physics.Collision) {
+  function resolveCollision(A: Body, B: Body, collision: Physics.Collision) {
     const rA = new Vector()
     const rB = new Vector()
     const rAOrth = new Vector()

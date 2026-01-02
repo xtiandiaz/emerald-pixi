@@ -11,6 +11,7 @@ export * from './Scene'
 export * from './Geometry'
 export * from './Collider'
 export * from './Collision'
+export * from './Physics'
 
 export * from './Screen'
 export * from './Tweener'

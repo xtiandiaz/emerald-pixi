@@ -1,6 +1,6 @@
 import { Transform, type PointData } from 'pixi.js'
 import { average, clamp, Component, Vector, Collider } from '../core'
-import { Physics } from '../physics'
+import { Physics } from '../'
 
 export interface BodyOptions {
   isStatic: boolean
@@ -12,6 +12,8 @@ export interface BodyOptions {
   restitution: number
   friction: Physics.Friction
 }
+
+export type EntityBody = [number, Body]
 
 export class Body extends Component implements BodyOptions {
   isStatic: boolean

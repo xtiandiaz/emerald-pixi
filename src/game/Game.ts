@@ -32,8 +32,8 @@ export class Game<State extends GameState> extends Application {
       accTime: 0,
     }
 
-    this.world.onEntityAdded = (id) => this.signalController.queue(new EntityAdded(id))
-    this.world.onEntityRemoved = (id) => this.signalController.queue(new EntityRemoved(id))
+    // this.world.onEntityAdded = (id) => this.signalController.queue(new EntityAdded(id))
+    // this.world.onEntityRemoved = (id) => this.signalController.queue(new EntityRemoved(id))
 
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
