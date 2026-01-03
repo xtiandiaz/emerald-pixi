@@ -13,14 +13,16 @@ export abstract class Scene {
   async load?(): Promise<void>
   build?(world: World): void
 
-  async init(world: World, sb: SignalBus): Promise<void> {
+  async init(world: World, signalBus: SignalBus): Promise<void> {
     await this.load?.()
 
     this.build?.(world)
 
-    this.systems.forEach((s) => s.init?.(world, this.hud, sb))
+    this.systems.forEach((s) => s.init?.(world, signalBus))
 
-    this.connections.push(sb.connect(ScreenResized, (s) => this.onScreenResized(s.width, s.height)))
+    this.connections.push(
+      signalBus.connect(ScreenResized, (s) => this.onScreenResized(s.width, s.height)),
+    )
     this.onScreenResized(Screen.width, Screen.height)
   }
 

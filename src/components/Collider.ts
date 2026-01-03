@@ -1,9 +1,11 @@
 import { Point, Transform, type PointData } from 'pixi.js'
-import { Vector, type Range } from '../core'
-import { Collision } from '.'
-import { Geometry } from '.'
+import { Component, Vector, type Range } from '../core'
+import { Collision } from '../core'
+import { Geometry } from '../core'
 
-export abstract class Collider {
+export abstract class Collider extends Component {
+  layer = 1
+
   readonly vertices: Point[]
   readonly normals: Vector[]
   protected transform = new Transform()
@@ -17,6 +19,12 @@ export abstract class Collider {
   get position(): PointData {
     return this.transform.position
   }
+  /* 
+    Area Density: https://en.wikipedia.org/wiki/Area_density
+  */
+  get mass(): number {
+    return this.area * 1 // density
+  }
 
   protected constructor(
     protected readonly _vertices: Point[],
@@ -24,6 +32,8 @@ export abstract class Collider {
     protected readonly centroid: Point,
     public readonly aabb: Collision.AABB = { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } },
   ) {
+    super()
+
     this.vertices = [..._vertices]
     this.normals = [..._normals]
 
@@ -40,14 +50,14 @@ export abstract class Collider {
     return Collider.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
   }
 
-  setTransform(t: Transform) {
+  setTransform(position: Point, rotation: number) {
     this.shouldUpdateVertices =
-      this.transform.position.x != t.position.x ||
-      this.transform.position.y != t.position.y ||
-      this.transform.rotation != t.rotation
+      this.transform.position.x != position.x ||
+      this.transform.position.y != position.y ||
+      this.transform.rotation != rotation
 
-    this.transform.position.set(t.position.x, t.position.y)
-    this.transform.rotation = t.rotation
+    this.transform.position.set(position.x, position.y)
+    this.transform.rotation = rotation
   }
 
   hasAABBIntersection(B: Collider): boolean {
@@ -57,24 +67,24 @@ export abstract class Collider {
     return Collision.isAABBIntersection(this.aabb, B.aabb)
   }
 
-  findCollision(B: Collider, includePoints: boolean = false): Collision.Result | undefined {
+  findContact(B: Collider, includePoints: boolean = false): Collision.Contact | undefined {
     this.updateVerticesIfNeeded()
     B.updateVerticesIfNeeded()
 
     if (B instanceof CircleCollider) {
-      return this.findCollisionWithCircle(B, includePoints)
+      return this.findContactWithCircle(B, includePoints)
     } else if (B instanceof PolygonCollider) {
-      return this.findCollisionWithPolygon(B, includePoints)
+      return this.findContactWithPolygon(B, includePoints)
     }
   }
-  abstract findCollisionWithCircle(
+  abstract findContactWithCircle(
     B: CircleCollider,
     includePoints: boolean,
-  ): Collision.Result | undefined
-  abstract findCollisionWithPolygon(
+  ): Collision.Contact | undefined
+  abstract findContactWithPolygon(
     B: PolygonCollider,
     includePoints: boolean,
-  ): Collision.Result | undefined
+  ): Collision.Contact | undefined
 
   protected updateVertices() {
     let minX = Infinity
@@ -123,7 +133,7 @@ export class CircleCollider extends Collider {
     this.area = 2 * Math.PI * radius
   }
 
-  findCollisionWithCircle(B: CircleCollider, includePoints: boolean): Collision.Result | undefined {
+  findContactWithCircle(B: CircleCollider, includePoints: boolean): Collision.Contact | undefined {
     const radii = this.radius + B.radius
     const diffPos = B.center.subtract(this.center)
     const distSqrd = diffPos.magnitudeSquared()
@@ -132,7 +142,7 @@ export class CircleCollider extends Collider {
     }
     const dist = Math.sqrt(distSqrd)
     const dir = diffPos.divideByScalar(dist)
-    const contact: Collision.Result = {
+    const contact: Collision.Contact = {
       depth: radii - dist,
       normal: dir,
     }
@@ -142,11 +152,11 @@ export class CircleCollider extends Collider {
     return contact
   }
 
-  findCollisionWithPolygon(
+  findContactWithPolygon(
     B: PolygonCollider,
     includePoints: boolean,
-  ): Collision.Result | undefined {
-    const contact: Collision.Result = { depth: Infinity, normal: new Vector() }
+  ): Collision.Contact | undefined {
+    const contact: Collision.Contact = { depth: Infinity, normal: new Vector() }
     let axis!: Vector, cProj!: Range, vProj!: Range
 
     for (let i = 0; i < B.vertices.length; i++) {
@@ -177,7 +187,7 @@ export class CircleCollider extends Collider {
     }
     const dir = this.center.subtract(B.center)
     if (dir.dot(contact.normal) < 0) {
-      contact.normal.invert()
+      contact.normal.multiplyScalar(-1, contact.normal)
     }
     if (includePoints) {
       contact.points = [Collision.findClosestPointOnVertices(this.center, B.vertices)]
@@ -214,13 +224,13 @@ export class PolygonCollider extends Collider {
     this.area = (this.aabb.max.x - this.aabb.min.x) * (this.aabb.max.y - this.aabb.min.y)
   }
 
-  findCollisionWithCircle(B: CircleCollider, includePoints: boolean): Collision.Result | undefined {
-    return B.findCollisionWithPolygon(this, includePoints)
+  findContactWithCircle(B: CircleCollider, includePoints: boolean): Collision.Contact | undefined {
+    return B.findContactWithPolygon(this, includePoints)
   }
-  findCollisionWithPolygon(
+  findContactWithPolygon(
     B: PolygonCollider,
     includePoints: boolean,
-  ): Collision.Result | undefined {
+  ): Collision.Contact | undefined {
     return
   }
 

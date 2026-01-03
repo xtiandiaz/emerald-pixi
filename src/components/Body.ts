@@ -1,10 +1,11 @@
-import { Transform, type PointData } from 'pixi.js'
-import { average, clamp, Component, Vector, Collider } from '../core'
+import { Point, Transform, type PointData } from 'pixi.js'
+import { clamp, Vector, Collider, Component } from '../core'
 import { Collision, Physics } from '../'
 
 export interface BodyOptions {
   isStatic: boolean
   isKinematic: boolean
+  isTrigger: boolean
   layer?: number
 
   position: PointData
@@ -13,9 +14,10 @@ export interface BodyOptions {
   friction: Physics.Friction
 }
 
-export class Body extends Component implements Collision.Component, BodyOptions {
+export class Body extends Component implements Collision.Actor, BodyOptions {
   isStatic: boolean
   isKinematic: boolean
+  isTrigger: boolean
   layer: number
 
   readonly velocity = new Vector()
@@ -25,7 +27,7 @@ export class Body extends Component implements Collision.Component, BodyOptions 
   torque = 0
 
   readonly transform = new Transform()
-  get position(): PointData {
+  get position(): Point {
     return this.transform.position
   }
   get rotation(): number {
@@ -47,6 +49,7 @@ export class Body extends Component implements Collision.Component, BodyOptions 
 
     this.isStatic = options?.isStatic ?? false
     this.isKinematic = options?.isKinematic ?? false
+    this.isTrigger = options?.isTrigger ?? false
     this.layer = options?.layer ?? 1
 
     this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
@@ -61,7 +64,8 @@ export class Body extends Component implements Collision.Component, BodyOptions 
 
     this.transform = new Transform({
       observer: {
-        _onUpdate: (transform) => this.collider.setTransform(transform),
+        _onUpdate: (transform) =>
+          this.collider.setTransform(transform.position, transform.rotation),
       },
     })
     this.transform.position.set(options?.position?.x, options?.position?.y)
@@ -71,21 +75,5 @@ export class Body extends Component implements Collision.Component, BodyOptions 
   applyForce(x: number, y: number) {
     this.force.x += x
     this.force.y += y
-  }
-
-  findCollision(other: Body): Physics.Collision | undefined {
-    const result = this.collider.findCollision(other.collider, true)
-    if (!result || !result.points) {
-      return
-    }
-    return {
-      points: result.points,
-      restitution: average(this.restitution, other.restitution),
-      friction: {
-        static: average(this.friction.static, other.friction.static),
-        dynamic: average(this.friction.dynamic, other.friction.dynamic),
-      },
-      ...result,
-    }
   }
 }

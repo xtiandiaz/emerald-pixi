@@ -4,13 +4,13 @@ import type { HUD } from '../ui'
 export class System {
   protected connections: Disconnectable[] = []
 
-  init?(world: World, hud: HUD, sb: SignalBus): void
+  init?(world: World, signalBus: SignalBus): void
 
   deinit() {
     this.connections.forEach((d) => d.disconnect())
     this.connections.length = 0
   }
 
-  fixedUpdate?(world: World, sb: SignalBus, dt: number): void
-  update?(world: World, sb: SignalBus, dt: number): void
+  fixedUpdate?(world: World, signalBus: SignalBus, dT: number): void
+  update?(world: World, signalBus: SignalBus, dT: number): void
 }

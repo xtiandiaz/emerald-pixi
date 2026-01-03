@@ -1,5 +1,5 @@
 import type { Point } from 'pixi.js'
-import { CircleCollider, Collision, Vector, type Collider, type EntityComponent } from '.'
+import { average, CircleCollider, Collision, Vector, type Collider } from '.'
 import { type Body } from '../components'
 
 export namespace Physics {
@@ -10,12 +10,6 @@ export namespace Physics {
   export interface Friction {
     static: number
     dynamic: number
-  }
-
-  export interface Collision extends Collision.Result {
-    points: Point[]
-    restitution: number
-    friction: Friction
   }
 
   export interface Options {
@@ -57,6 +51,7 @@ export namespace Physics {
       body.velocity.x += forces.x /* * body.invMass */ * dT
       body.velocity.y += forces.y /* * body.invMass */ * dT
     }
+
     body.transform.position.x += body.velocity.x * PPM * dT
     body.transform.position.y += body.velocity.y * PPM * dT
   }
@@ -80,10 +75,29 @@ export namespace Physics {
     }
   }
 
+  interface ResolutionCoefficients {
+    restitution: number
+    friction: Friction
+  }
+  function getResolutionCoefficients(A: Body, B: Body): ResolutionCoefficients {
+    return {
+      restitution: average(A.restitution, B.restitution),
+      friction: {
+        static: average(A.friction.static, B.friction.static),
+        dynamic: average(A.friction.dynamic, B.friction.dynamic),
+      },
+    }
+  }
+
   /*  
     Collision Response: https://en.wikipedia.org/wiki/Collision_response#Impulse-based_reaction_model
   */
-  export function resolveCollision(A: Body, B: Body, collision: Physics.Collision) {
+  export function resolveCollision(A: Body, B: Body, contact: Collision.Contact) {
+    if (!contact.points) {
+      return
+    }
+
+    const coeffs = getResolutionCoefficients(A, B)
     const rA = new Vector()
     const rB = new Vector()
     const rAOrth = new Vector()
@@ -95,8 +109,8 @@ export namespace Physics {
     const vr = new Vector()
     const tangent = new Vector()
 
-    for (const collisionPoint of collision.points) {
-      const N = collision.normal
+    for (const collisionPoint of contact.points) {
+      const N = contact.normal
 
       collisionPoint.subtract(A.position, rA)
       collisionPoint.subtract(B.position, rB)
@@ -118,11 +132,11 @@ export namespace Physics {
       // const rBOrthDotTan = rBOrth.dot(tangent)
 
       // Reaction impulse (jr)
-      let jr = -(1 + collision.restitution) * contactVelMag
+      let jr = -(1 + coeffs.restitution) * contactVelMag
       const rA_x_rAcrossN_x_invI = rA.multiplyScalar(rA.cross(N) * A.invInertia)
       const rB_x_rBcrossN_x_invI = rB.multiplyScalar(rB.cross(N) * B.invInertia)
       jr /= A.invMass + B.invMass + N.dot(rA_x_rAcrossN_x_invI.add(rB_x_rBcrossN_x_invI))
-      jr /= collision.points.length
+      jr /= contact.points.length
 
       const impulse = N.multiplyScalar(jr)
       if (!A.isStatic) {

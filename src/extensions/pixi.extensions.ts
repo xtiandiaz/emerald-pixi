@@ -3,19 +3,12 @@ import 'pixi.js/math-extras'
 import { clamp, Vector } from '../core'
 
 declare module 'pixi.js' {
-  interface Point {
-    invert(): void
-  }
   interface Rectangle {
     size(): Point
     center(): Point
   }
 }
 
-Point.prototype.invert = function (this) {
-  this.x *= -1
-  this.y *= -1
-}
 Rectangle.prototype.size = function (this): Point {
   return new Point(this.width, this.height)
 }

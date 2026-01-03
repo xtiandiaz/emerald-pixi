@@ -16,43 +16,45 @@ export class GestureSystem extends System {
   private updateConnection?: Disconnectable
 
   init(world: World, hud: HUD, sb: SignalBus): void {
-    const ecs = world.getEntitiesWithComponent(GestureTarget)
-    for (const { e } of ecs) {
-      e.interactive = true
-      e.on('pointerdown', (ev) => this.targetGesture(e.id, ev, world))
-    }
-
-    world.interactive = true
-    world.eventMode = 'static'
-    this.connections.push(
-      connectContainerEvent('pointerup', world, () => this.clearGesture(world)),
-      connectContainerEvent('pointerupoutside', world, () => this.clearGesture(world)),
-    )
+    // const ecs = world.getEntityComponents(GestureTarget)
+    // for (const [eId, target] of ecs) {
+    //   const skin = world.getComponent(eId, ContainerChildComponent)
+    //   if (!skin) {
+    //     continue
+    //   }
+    //   skin.isInteractive = true
+    //   skin.dermis.on('pointerdown', (ev) => this.targetGesture(eId, skin, ev, world))
+    // }
+    // world.interactive = true
+    // world.eventMode = 'static'
+    // this.connections.push(
+    //   connectContainerEvent('pointerup', world, () => this.clearGesture(world)),
+    //   connectContainerEvent('pointerupoutside', world, () => this.clearGesture(world)),
+    // )
   }
 
-  private targetGesture(eId: number, fpe: FederatedPointerEvent, w: World) {
-    const e = w.getEntity(eId)
-    const gtc = e?.getComponent(GestureTarget)
-    if (!e) {
-      return
-    }
-    this.target = {
-      id: eId,
-      offset: fpe.global.subtract(e.getComponent(Body)?.position ?? e.position),
-    }
-    this.updateConnection = connectContainerEvent('globalpointermove', w, (fpe) => {
-      this.updateGesture(fpe, w)
-    })
-  }
+  // private targetGesture(
+  //   eId: number,
+  //   skin: ContainerChildComponent,
+  //   fpe: FederatedPointerEvent,
+  //   world: World,
+  // ) {
+  //   this.target = {
+  //     id: eId,
+  //     offset: fpe.global.subtract(skin.position),
+  //   }
+  //   this.updateConnection = connectContainerEvent('globalpointermove', world, (fpe) => {
+  //     this.updateGesture(fpe, world)
+  //   })
+  // }
 
-  private updateGesture(fpe: FederatedPointerEvent, w: World) {
+  private updateGesture(fpe: FederatedPointerEvent, world: World) {
     if (!this.target) {
       return
     }
     const posX = fpe.x - this.target.offset.x
     const posY = fpe.y - this.target.offset.y
-    const e = w.getEntity(this.target.id)
-    const gt = e?.getComponent(GestureTarget)
+    const gt = world.getComponent(this.target.id, GestureTarget)
     if (gt && gt.gestures.includes(GestureKey.Drag)) {
       if (!gt.dragPosition) {
         gt.dragPosition = new Point(posX, posY)
@@ -62,11 +64,11 @@ export class GestureSystem extends System {
     }
   }
 
-  private clearGesture(w: World) {
+  private clearGesture(world: World) {
     this.updateConnection?.disconnect()
 
     if (this.target) {
-      const gt = w.getEntity(this.target.id)?.getComponent(GestureTarget)
+      const gt = world.getComponent(this.target.id, GestureTarget)
       if (gt) {
         gt.dragPosition = undefined
       }

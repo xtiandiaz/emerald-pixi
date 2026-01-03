@@ -1,4 +1,4 @@
-import { Component, System, Signal, Collider } from './'
+import { System, Signal, type Component, Entity } from './'
 import { Point } from 'pixi.js'
 
 export { Point as Vector }
@@ -19,6 +19,16 @@ export type KeyMap<T> = { [key: string]: T }
 
 export type SomeComponent<T extends Component> = new (...args: any) => T
 export type EntityComponent<T extends Component> = [entityId: number, component: T]
+
+export type SomeEntity<T extends Entity> = new (
+  id: number,
+  hasComponent: <T extends Component>(type: SomeComponent<T>) => boolean,
+  getComponent: <T extends Component>(type: SomeComponent<T>) => T | undefined,
+  addComponent: <T extends Component, U extends T[]>(...components: U) => U[0] | undefined,
+  removeComponent: <T extends Component>(type: SomeComponent<T>) => boolean,
+  tag: (tag: string) => void,
+  getTag: () => string | undefined,
+) => T
 
 export type SomeSystem<T extends System> = new (...args: any) => T
 

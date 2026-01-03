@@ -1,5 +1,5 @@
 import type { Point, PointData } from 'pixi.js'
-import type { Collider, Range, Vector, Component as CoreComponent, EntityComponent } from '../core'
+import type { Collider, EntityComponent, Range, Vector } from '../core'
 import { Geometry } from './Geometry'
 
 export namespace Collision {
@@ -8,14 +8,14 @@ export namespace Collision {
     max: PointData
   }
 
-  export type AABBIntersectionIndexPair = [idA: number, idB: number]
+  export type AABBIntersectionIdPair = [idA: number, idB: number]
 
-  export interface Component extends CoreComponent {
+  export interface Actor {
     collider: Collider
     layer: number
   }
 
-  export interface Result {
+  export interface Contact {
     depth: number
     normal: Vector
     points?: Point[]
@@ -86,19 +86,35 @@ export namespace Collision {
     return closestPoint
   }
 
-  export function findAABBIntersectionIndexPairs(
-    collisionComponents: Collision.Component[],
+  export function findContacts(
+    components: Collision.Actor[],
     canCollide: (layerA: number, layerB: number) => boolean,
-  ): AABBIntersectionIndexPair[] {
-    const pairs: AABBIntersectionIndexPair[] = []
-    let A!: Collision.Component, B!: Collision.Component
+    includePoints: boolean,
+  ): Contact[] {
+    const contacts: Contact[] = []
+    // const indexPairs = findAABBIntersectionIdPairs(components, canCollide)
+    // for (const [iA, iB] of indexPairs) {
+    //   const contact = components[iA]!.collider.findContact(components[iB]!.collider, includePoints)
+    //   if (contact) {
+    //     contacts.push(contact)
+    //   }
+    // }
+    return contacts
+  }
 
-    for (let i = 0; i < collisionComponents.length - 1; i++) {
-      A = collisionComponents[i]!
-      for (let j = i + 1; j < collisionComponents.length; j++) {
-        B = collisionComponents[j]!
-        if (canCollide(A.layer, B.layer) && A.collider.hasAABBIntersection(B.collider)) {
-          pairs.push([i, j])
+  export function findAABBIntersectionIdPairs(
+    eColliders: EntityComponent<Collider>[],
+    canCollide: (layerA: number, layerB: number) => boolean,
+  ): AABBIntersectionIdPair[] {
+    const pairs: AABBIntersectionIdPair[] = []
+    let A!: Collider, B!: Collider
+
+    for (let i = 0; i < eColliders.length - 1; i++) {
+      A = eColliders[i]![1]
+      for (let j = i + 1; j < eColliders.length; j++) {
+        B = eColliders[j]![1]
+        if (canCollide(A.layer, B.layer) && A.hasAABBIntersection(B)) {
+          pairs.push([eColliders[i]![0], eColliders[j]![0]])
         }
       }
     }
