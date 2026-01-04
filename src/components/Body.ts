@@ -1,6 +1,6 @@
 import { Point, Transform, type PointData } from 'pixi.js'
 import { clamp, Vector, Collider, Component } from '../core'
-import { Collision, Physics } from '../'
+import { Physics } from '../'
 
 export interface BodyOptions {
   isStatic: boolean
@@ -10,6 +10,8 @@ export interface BodyOptions {
 
   position: PointData
   rotation: number
+  scale: number
+
   restitution: number
   friction: Physics.Friction
 }
@@ -33,13 +35,32 @@ export class Body extends Component implements BodyOptions {
   get rotation(): number {
     return this.transform.rotation
   }
+  get scale(): number {
+    return this.transform.scale.x
+  }
+  set scale(value: number) {
+    this.transform.scale.set(value, value)
+  }
 
-  readonly mass: number
-  readonly invMass: number
-  readonly inertia: number
-  readonly invInertia: number
+  get mass(): number {
+    return this._mass * this.scale
+  }
+  get invMass(): number {
+    return this._invMass / this.scale
+  }
+  get inertia(): number {
+    return this._inertia * this.scale
+  }
+  get invInertia(): number {
+    return this._invInertia / this.scale
+  }
   restitution: number
   friction: Physics.Friction
+
+  private readonly _mass: number
+  private readonly _invMass: number
+  private readonly _inertia: number
+  private readonly _invInertia: number
 
   constructor(
     public readonly collider: Collider,
@@ -52,10 +73,10 @@ export class Body extends Component implements BodyOptions {
     this.isTrigger = options?.isTrigger ?? false
     this.layer = options?.layer ?? 1
 
-    this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
-    this.invMass = this.mass ? 1 / this.mass : 0
-    this.inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this.mass)
-    this.invInertia = this.inertia ? 1 / this.inertia : 0
+    this._mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
+    this._invMass = this._mass ? 1 / this._mass : 0
+    this._inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this._mass)
+    this._invInertia = this._inertia ? 1 / this._inertia : 0
     this.restitution = clamp(options?.restitution ?? 0.2, 0, 1)
     this.friction = options?.friction ?? {
       static: 0.5,
@@ -65,10 +86,11 @@ export class Body extends Component implements BodyOptions {
     this.transform = new Transform({
       observer: {
         _onUpdate: (transform) =>
-          this.collider.setTransform(transform.position, transform.rotation),
+          this.collider.setTransform(transform.position, transform.rotation, transform.scale),
       },
     })
     this.transform.position.set(options?.position?.x, options?.position?.y)
     this.transform.rotation = options?.rotation ?? 0
+    this.transform.scale.set(options?.scale ?? 1)
   }
 }

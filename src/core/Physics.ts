@@ -7,6 +7,7 @@ export namespace Physics {
     vector: Vector
     value: number
   }
+
   export interface Friction {
     static: number
     dynamic: number
@@ -21,7 +22,7 @@ export namespace Physics {
 
   export function calculateColliderInertia(collider: Collider, mass: number) {
     if (collider instanceof CircleCollider) {
-      return mass * collider.radius * collider.radius
+      return mass * collider._radius * collider._radius
     } else {
       // TODO Find out why
       const w = collider.aabb.max.x - collider.aabb.min.x

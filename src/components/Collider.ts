@@ -44,7 +44,7 @@ export abstract class Collider extends Component {
     return Collider.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
   }
 
-  setTransform(position: Point, rotation: number) {
+  setTransform(position: PointData, rotation: number, scale: PointData) {
     this.shouldUpdateVertices =
       this.transform.position.x != position.x ||
       this.transform.position.y != position.y ||
@@ -52,6 +52,7 @@ export abstract class Collider extends Component {
 
     this.transform.position.set(position.x, position.y)
     this.transform.rotation = rotation
+    this.transform.scale.set(scale.x, scale.y)
   }
 
   hasAABBIntersection(B: Collider): boolean {
@@ -89,6 +90,7 @@ export abstract class Collider extends Component {
     for (let i = 0; i < this._vertices.length; i++) {
       const v = this.vertices[i]!
       this.transform.matrix.apply(this._vertices[i]!, v)
+
       this._normals[i]!.rotate(this.transform.rotation, this.normals[i])
 
       minX = Math.min(minX, v.x)
@@ -114,17 +116,21 @@ export abstract class Collider extends Component {
 export class CircleCollider extends Collider {
   readonly area: number
 
+  get radius(): number {
+    return this._radius * this.transform.scale.x
+  }
+
   constructor(
     x: number,
     y: number,
-    public radius: number,
+    public readonly _radius: number,
   ) {
     super([], [], new Point(x, y), {
-      min: { x: x - radius, y: y - radius },
-      max: { x: x + radius, y: y + radius },
+      min: { x: x - _radius, y: y - _radius },
+      max: { x: x + _radius, y: y + _radius },
     })
 
-    this.area = 2 * Math.PI * radius
+    this.area = 2 * Math.PI * _radius
   }
 
   findContactWithCircle(B: CircleCollider, includePoints: boolean): Collision.Contact | undefined {
