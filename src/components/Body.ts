@@ -14,7 +14,7 @@ export interface BodyOptions {
   friction: Physics.Friction
 }
 
-export class Body extends Component implements Collision.Actor, BodyOptions {
+export class Body extends Component implements BodyOptions {
   isStatic: boolean
   isKinematic: boolean
   isTrigger: boolean
@@ -70,10 +70,5 @@ export class Body extends Component implements Collision.Actor, BodyOptions {
     })
     this.transform.position.set(options?.position?.x, options?.position?.y)
     this.transform.rotation = options?.rotation ?? 0
-  }
-
-  applyForce(x: number, y: number) {
-    this.force.x += x
-    this.force.y += y
   }
 }

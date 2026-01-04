@@ -1,6 +1,13 @@
-export interface FixedTimeStep {
+import type { ApplicationOptions } from 'pixi.js'
+import type { PhysicsSystemOptions } from '../systems'
+
+export interface FixedTime {
   step: number
-  accTime: number // accumulated time
+  reserve: number
+}
+
+export interface GameOptions extends ApplicationOptions {
+  physics: Partial<PhysicsSystemOptions>
 }
 
 export interface GameState {

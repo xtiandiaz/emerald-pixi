@@ -1,10 +1,12 @@
 import { System, World, Vector, type SignalBus } from '../core'
-import { Collision, Entity, Physics } from '../'
-import { Body } from '../components'
-import { CollisionSensor } from '../components/CollisionSensor'
+import { Collider, Collision, Entity, Physics } from '../'
+import { Body, CollisionSensor } from '../components'
 
-export interface PhysicsSystemOptions extends Physics.Options {
-  rendersColliders: boolean
+export interface PhysicsSystemOptions {
+  gravity: Physics.Gravity
+  iterations: number
+  PPM: number // Pixels Per Meter
+  collisionLayerMap?: Collision.LayerMap
 }
 
 export class PhysicsSystem extends System {
@@ -19,13 +21,21 @@ export class PhysicsSystem extends System {
         value: 9.81, // m/s^2
       },
       PPM: 10,
-      iterations: 12,
-      rendersColliders: false,
+      iterations: 1,
+      ...options,
+    }
+  }
+
+  resetOptions(options: Partial<PhysicsSystemOptions>) {
+    this.options = {
+      ...this.options,
       ...options,
     }
   }
 
   fixedUpdate(world: World, signalBus: SignalBus, dT: number): void {
+    const gravity = this.options.gravity
+    const PPM = this.options.PPM
     const colliders = world.colliders
     let entity!: Entity, body: Body | undefined
 
@@ -34,69 +44,56 @@ export class PhysicsSystem extends System {
 
       body = entity.getComponent(Body)
       if (body) {
+        Physics.stepBody(body, gravity, PPM, dT)
         entity.position.copyFrom(body.position)
         entity.rotation = body.rotation
       } else {
         collider.setTransform(entity.position, entity.rotation)
       }
-
+      // Clear collided IDs from previous step
       entity.getComponent(CollisionSensor)?.collidedIds.clear()
     }
 
-    const idPairs = Collision.findAABBIntersectionIdPairs(colliders, (lA, lB) => true)
+    const colliderPairs = Collision.findAABBIntersectionIdPairs(colliders, (lA, lB) => true)
+
     let A: Entity, B: Entity
+    let colliderA: Collider | undefined, colliderB: Collider | undefined
     let tag: string | undefined
     let sensor: CollisionSensor | undefined
+    let bodyA: Body | undefined, bodyB: Body | undefined
+    let contact: Collision.Contact | undefined
+    let shouldResolve = false
 
-    for (const [idA, idB] of idPairs) {
-      A = world.getEntity(idA)!
-      B = world.getEntity(idB)!
+    for (const [eA, eB] of colliderPairs) {
+      A = world.getEntity(eA[0])!
+      B = world.getEntity(eB[0])!
+      colliderA = eA[1]
+      colliderB = eB[1]
+      bodyA = A.getComponent(Body)
+      bodyB = B.getComponent(Body)
+      shouldResolve = bodyA != undefined || bodyB != undefined
+
+      contact = colliderA.findContact(colliderB, shouldResolve)
+      if (!contact) {
+        continue
+      }
 
       sensor = A.getComponent(CollisionSensor)
       tag = B.getTag()
       if (sensor && tag && sensor.targetTags.has(tag)) {
-        sensor.collidedIds.add(idB)
+        sensor.collidedIds.add(eB[0])
       }
       sensor = B.getComponent(CollisionSensor)
       tag = A.getTag()
       if (sensor && tag && sensor.targetTags.has(tag)) {
-        sensor.collidedIds.add(idA)
+        sensor.collidedIds.add(eA[0])
       }
-    }
 
-    // const eBodies = world.eBodies
-    // const bodies = eBodies.map((eb) => eb[1])
-    // let A!: Body, B!: Body, container!: Container
-    // dT /= this.options.iterations
-    // for (let i = 0; i < this.options.iterations; i++) {
-    //   for (const [_, b] of eBodies) {
-    //     Physics.stepBody(b, this.options.gravity, this.options.PPM, dT)
-    //   }
-    //   const indexPairs = Collision.findAABBIntersectionIndexPairs(bodies, (lA, lB) =>
-    //     Physics.canCollide(lA, lB, this.options.collisionLayerMap),
-    //   )
-    //   for (const [iA, iB] of indexPairs) {
-    //     A = eBodies[iA]![1]
-    //     B = eBodies[iB]![1]
-    //     const isTrigger = A.isTrigger || B.isTrigger
-    //     const contact = A.collider.findContact(B.collider, !isTrigger)
-    //     if (!contact) {
-    //       continue
-    //     }
-    //     if (isTrigger) {
-    //       const idA = eBodies[iA]![0]
-    //       const idB = eBodies[iB]![0]
-    //       // signalBus.queue(
-    //       //   new CollisionTriggered(
-    //       //     { id: idA, tag: world.getEntityTag(idA) },
-    //       //     { id: idB, tag: world.getEntityTag(idB) },
-    //       //   ),
-    //       // )
-    //       continue
-    //     }
-    //     Physics.separateBodies(A, B, contact.normal.multiplyScalar(contact.depth))
-    //     Physics.resolveCollision(A, B, contact)
-    //   }
-    // }
+      if (!bodyA || !bodyB) {
+        continue
+      }
+      Physics.separateBodies(bodyA, bodyB, contact.normal.multiplyScalar(contact.depth))
+      Physics.resolveCollision(bodyA, bodyB, contact)
+    }
   }
 }

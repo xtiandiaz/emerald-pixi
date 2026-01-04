@@ -8,12 +8,8 @@ export namespace Collision {
     max: PointData
   }
 
-  export type AABBIntersectionIdPair = [idA: number, idB: number]
-
-  export interface Actor {
-    collider: Collider
-    layer: number
-  }
+  type EntityCollider = EntityComponent<Collider>
+  export type AABBIntersectionPair = [A: EntityCollider, B: EntityCollider]
 
   export interface Contact {
     depth: number
@@ -87,7 +83,7 @@ export namespace Collision {
   }
 
   export function findContacts(
-    components: Collision.Actor[],
+    // components: Collision.Actor[],
     canCollide: (layerA: number, layerB: number) => boolean,
     includePoints: boolean,
   ): Contact[] {
@@ -103,18 +99,18 @@ export namespace Collision {
   }
 
   export function findAABBIntersectionIdPairs(
-    eColliders: EntityComponent<Collider>[],
+    eColliders: EntityCollider[],
     canCollide: (layerA: number, layerB: number) => boolean,
-  ): AABBIntersectionIdPair[] {
-    const pairs: AABBIntersectionIdPair[] = []
-    let A!: Collider, B!: Collider
+  ): AABBIntersectionPair[] {
+    const pairs: AABBIntersectionPair[] = []
+    let eA!: EntityCollider, eB!: EntityCollider
 
     for (let i = 0; i < eColliders.length - 1; i++) {
-      A = eColliders[i]![1]
+      eA = eColliders[i]!
       for (let j = i + 1; j < eColliders.length; j++) {
-        B = eColliders[j]![1]
-        if (canCollide(A.layer, B.layer) && A.hasAABBIntersection(B)) {
-          pairs.push([eColliders[i]![0], eColliders[j]![0]])
+        eB = eColliders[j]!
+        if (canCollide(eA[1].layer, eB[1].layer) && eA[1].hasAABBIntersection(eB[1])) {
+          pairs.push([eA, eB])
         }
       }
     }

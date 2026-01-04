@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js'
-import type { Collider, Component, SomeComponent } from './'
+import type { Component, SomeComponent } from './'
 
 export abstract class Entity extends Container {
   constructor(
@@ -8,13 +8,15 @@ export abstract class Entity extends Container {
     public getComponent: <T extends Component>(type: SomeComponent<T>) => T | undefined,
     public addComponent: <T extends Component, U extends T[]>(...components: U) => U[0] | undefined,
     public removeComponent: <T extends Component>(type: SomeComponent<T>) => boolean,
-    public tag: (tag: string) => void,
+    public tag: (tag: string) => Entity,
     public getTag: () => string | undefined,
   ) {
     super()
   }
 
   abstract init(): void
+}
 
-  onCollision?(other: Collider): void
+export class SimpleEntity extends Entity {
+  init(): void {}
 }

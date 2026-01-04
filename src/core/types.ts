@@ -26,7 +26,7 @@ export type SomeEntity<T extends Entity> = new (
   getComponent: <T extends Component>(type: SomeComponent<T>) => T | undefined,
   addComponent: <T extends Component, U extends T[]>(...components: U) => U[0] | undefined,
   removeComponent: <T extends Component>(type: SomeComponent<T>) => boolean,
-  tag: (tag: string) => void,
+  tag: (tag: string) => Entity,
   getTag: () => string | undefined,
 ) => T
 

@@ -12,13 +12,6 @@ export namespace Physics {
     dynamic: number
   }
 
-  export interface Options {
-    gravity: Gravity
-    iterations: number
-    PPM: number // Pixels Per Meter
-    collisionLayerMap?: Collision.LayerMap
-  }
-
   /* 
     Area Density: https://en.wikipedia.org/wiki/Area_density
   */
@@ -44,8 +37,8 @@ export namespace Physics {
     if (!body.isKinematic) {
       // TODO Apply inv-mass after solving the meters vs pixels conundrum
       const forces = gravity.vector.multiplyScalar(gravity.value /* * body.invMass */)
-      forces.x += body.force.x / dT
-      forces.y += body.force.y / dT
+      forces.x += (body.force.x * PPM) / dT
+      forces.y += (body.force.y * PPM) / dT
       body.force.set(0, 0)
 
       body.velocity.x += forces.x /* * body.invMass */ * dT

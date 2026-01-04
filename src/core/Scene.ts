@@ -2,15 +2,20 @@ import { Assets, Rectangle } from 'pixi.js'
 import { World, System, Screen, type Disconnectable, type SignalBus } from './'
 import { ScreenResized } from '../signals'
 import { HUD } from '../ui'
+import type { PhysicsSystemOptions } from '../systems'
 
 export abstract class Scene {
   abstract readonly systems: System[]
   readonly hud = new HUD()
   protected connections: Disconnectable[] = []
 
-  constructor(public readonly name: string) {}
+  constructor(
+    public readonly name: string,
+    public readonly physicsOptions?: Partial<PhysicsSystemOptions>,
+  ) {}
 
   async load?(): Promise<void>
+
   build?(world: World): void
 
   async init(world: World, signalBus: SignalBus): Promise<void> {

@@ -1,6 +1,7 @@
 import {
   Collider,
   Entity,
+  SimpleEntity,
   type Component,
   type EntityComponent,
   type SomeComponent,
@@ -37,7 +38,7 @@ export class World extends Container {
       (type) => this.getComponent(id, type),
       (...components) => this.addComponent(id, ...components),
       (type) => this.removeComponent(id, type),
-      (tag) => this.tag(id, tag),
+      (tag) => this.tag(id, tag)!,
       () => this.getEntityTag(id),
     )
 
@@ -51,6 +52,12 @@ export class World extends Container {
     return entity
   }
 
+  createSimpleEntity<U extends Component, V extends U[]>(...components: V): SimpleEntity {
+    const entity = this.createEntity(SimpleEntity)
+    components.forEach((c) => entity.addComponent(c))
+    return entity
+  }
+
   hasEntity(id: number): boolean {
     return this.componentMap.has(id)
   }
@@ -61,6 +68,10 @@ export class World extends Container {
 
   getEntityByType<T extends Entity>(type: SomeEntity<T>): T | undefined {
     return this.entityTypeMap.get(type.name) as T
+  }
+
+  getEntitiesByTag(tag: string): Entity[] {
+    return [...(this.taggedIds.get(tag) ?? [])].map((id) => this.entityMap.get(id)!)
   }
 
   removeEntity(id: number) {
@@ -82,7 +93,11 @@ export class World extends Container {
     }
   }
 
-  tag(entityId: number, tag: string) {
+  tag(entityId: number, tag: string): Entity | undefined {
+    const entity = this.entityMap.get(entityId)
+    if (!entity) {
+      return
+    }
     const prevTag = this.tagMap.get(entityId)
     if (prevTag) {
       this.taggedIds.get(tag)?.delete(entityId)
@@ -93,6 +108,8 @@ export class World extends Container {
     } else {
       this.taggedIds.set(tag, new Set([entityId]))
     }
+
+    return entity
   }
 
   getEntityTag(id: number): string | undefined {

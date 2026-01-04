@@ -19,12 +19,6 @@ export abstract class Collider extends Component {
   get position(): PointData {
     return this.transform.position
   }
-  /* 
-    Area Density: https://en.wikipedia.org/wiki/Area_density
-  */
-  get mass(): number {
-    return this.area * 1 // density
-  }
 
   protected constructor(
     protected readonly _vertices: Point[],

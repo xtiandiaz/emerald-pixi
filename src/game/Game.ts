@@ -1,22 +1,18 @@
 import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
-import { type FixedTimeStep, type GameState } from '.'
+import { type FixedTime, type GameOptions, type GameState } from '.'
 import { Scene, Screen, World, type SignalBus, type Disconnectable, clamp } from '../core'
 import { SignalController } from '../controllers'
 import { ScreenResized } from '../signals'
 import { PhysicsSystem } from '../systems'
-
-export interface GameOptions {
-  pixelsPerMeter: number
-}
 
 export class Game<State extends GameState> extends Application {
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
   private physicsSystem!: PhysicsSystem
-  private fixedTime: FixedTimeStep = {
+  private fixedTime: FixedTime = {
     step: 1 / 60,
-    accTime: 0,
+    reserve: 0,
   }
   private connections: Disconnectable[] = []
 
@@ -29,10 +25,10 @@ export class Game<State extends GameState> extends Application {
     this.stage.addChild(this.world)
   }
 
-  async init(options: Partial<ApplicationOptions>, startScene?: string): Promise<void> {
+  async init(options: Partial<GameOptions>, startScene?: string): Promise<void> {
     await super.init(options)
 
-    this.physicsSystem = new PhysicsSystem() // TODO port and add physics options in app's
+    this.physicsSystem = new PhysicsSystem(options.physics)
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
     this.ticker.add(this.fixedUpdate, this)
@@ -71,7 +67,12 @@ export class Game<State extends GameState> extends Application {
       this.scene.deinit()
       this.stage.removeChild(this.scene.hud)
     }
+    if (nextScene.physicsOptions) {
+      this.physicsSystem.resetOptions(nextScene.physicsOptions)
+    }
+
     this.stage.addChild(nextScene.hud)
+
     this.scene = nextScene
   }
 
@@ -79,16 +80,16 @@ export class Game<State extends GameState> extends Application {
     if (this.state.isPaused) {
       return
     }
-    this.fixedTime.accTime = clamp(this.fixedTime.accTime + ticker.deltaMS, 0, 0.1)
+    this.fixedTime.reserve = clamp(this.fixedTime.reserve + ticker.deltaMS, 0, 0.1)
 
-    while (this.fixedTime.accTime >= this.fixedTime.step) {
+    while (this.fixedTime.reserve >= this.fixedTime.step) {
       this.physicsSystem.fixedUpdate(this.world, this.signalController, this.fixedTime.step)
 
       this.scene?.systems.forEach((s) => {
         s.fixedUpdate?.(this.world, this.signalController, this.fixedTime.step)
       })
 
-      this.fixedTime.accTime -= this.fixedTime.step
+      this.fixedTime.reserve -= this.fixedTime.step
     }
   }
 
