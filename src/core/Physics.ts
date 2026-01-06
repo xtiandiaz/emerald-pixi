@@ -1,8 +1,9 @@
-import type { Point } from 'pixi.js'
 import { average, CircleCollider, Collision, Vector, type Collider } from '.'
 import { type Body } from '../components'
 
 export namespace Physics {
+  export const NEARLY_ZERO_MAGNITUDE = 0.001 // 1 mm
+
   export interface Gravity {
     vector: Vector
     value: number
@@ -20,14 +21,26 @@ export namespace Physics {
     return area * density
   }
 
-  export function calculateColliderInertia(collider: Collider, mass: number) {
+  /* 
+    Moment of inertia of area: https://en.wikipedia.org/wiki/Moment_of_inertia#Moment_of_inertia_of_area
+  */
+  export function calculateColliderInertia(collider: Collider) {
     if (collider instanceof CircleCollider) {
-      return mass * collider._radius * collider._radius
+      return (Math.PI * Math.pow(collider._radius, 4)) / 4
     } else {
-      // TODO Find out why
       const w = collider.aabb.max.x - collider.aabb.min.x
       const h = collider.aabb.max.y - collider.aabb.min.y
-      return (mass * (w * w + h * h)) / 12
+      const numberOfVertices = collider.vertices.length
+      switch (numberOfVertices) {
+        case 3:
+          return (w * Math.pow(h, 3)) / 36
+        case 4:
+          return (w * Math.pow(h, 3)) / 12
+        default:
+          throw new Error(
+            `Inertia for polygons of ${numberOfVertices} vertices is NOT yet calculated!`,
+          )
+      }
     }
   }
 
@@ -48,6 +61,7 @@ export namespace Physics {
 
     body.transform.position.x += body.velocity.x * PPM * dT
     body.transform.position.y += body.velocity.y * PPM * dT
+    body.transform.rotation += body.angularVelocity * dT
   }
 
   export function canCollide(layerA: number, layerB: number, map?: Collision.LayerMap): boolean {
@@ -77,6 +91,8 @@ export namespace Physics {
     return {
       restitution: average(A.restitution, B.restitution),
       friction: {
+        // static: Math.sqrt(A.friction.static * B.friction.static),
+        // dynamic: Math.sqrt(A.friction.dynamic * B.friction.dynamic),
         static: average(A.friction.static, B.friction.static),
         dynamic: average(A.friction.dynamic, B.friction.dynamic),
       },
@@ -91,6 +107,7 @@ export namespace Physics {
       return
     }
 
+    const zeroVector = new Vector()
     const coeffs = getResolutionCoefficients(A, B)
     const rA = new Vector()
     const rB = new Vector()
@@ -102,47 +119,71 @@ export namespace Physics {
     // Relative velocity: vr = vB - vA
     const vr = new Vector()
     const tangent = new Vector()
+    const impulse = new Vector()
+    const frictionalImpulse = new Vector()
 
     for (const collisionPoint of contact.points) {
       const N = contact.normal
 
       collisionPoint.subtract(A.position, rA)
       collisionPoint.subtract(B.position, rB)
-      rA.orthogonalize(rAOrth)
-      rB.orthogonalize(rBOrth)
 
-      A.velocity.add(rAOrth.multiplyScalar(A.angularVelocity), vpA)
-      B.velocity.add(rBOrth.multiplyScalar(B.angularVelocity), vpB)
+      // vpi = vi + ⍵i ⨯ ri
+      // where ⍵ in 2D is the derivative (tangent) of the angle, i.e., the orthogonal of r
+      // https://en.wikipedia.org/wiki/Angular_velocity#Particle_in_two_dimensions
+      A.velocity.add(rA.orthogonalize(rAOrth).multiplyScalar(A.angularVelocity), vpA)
+      B.velocity.add(rB.orthogonalize(rBOrth).multiplyScalar(B.angularVelocity), vpB)
 
       vpB.subtract(vpA, vr)
 
-      const contactVelMag = vr.dot(N)
-      if (contactVelMag > 0) {
-        // Already separating...
+      const vrDotN = vr.dot(N)
+      if (vrDotN > 0) {
         return
       }
-
-      // const rAOrthDotTan = rAOrth.dot(tangent)
-      // const rBOrthDotTan = rBOrth.dot(tangent)
-
-      // Reaction impulse (jr)
-      let jr = -(1 + coeffs.restitution) * contactVelMag
-      const rA_x_rAcrossN_x_invI = rA.multiplyScalar(rA.cross(N) * A.invInertia)
-      const rB_x_rBcrossN_x_invI = rB.multiplyScalar(rB.cross(N) * B.invInertia)
-      jr /= A.invMass + B.invMass + N.dot(rA_x_rAcrossN_x_invI.add(rB_x_rBcrossN_x_invI))
+      // Reaction impulse magnitude (jr)
+      let jr = -(1 + coeffs.restitution) * vrDotN
+      const rA_x_rAcrossN_x_invI = rA.multiplyScalar(rA.cross(N) * A.invScaledInertia)
+      const rB_x_rBcrossN_x_invI = rB.multiplyScalar(rB.cross(N) * B.invScaledInertia)
+      const denom =
+        A.invScaledMass + B.invScaledMass + N.dot(rA_x_rAcrossN_x_invI.add(rB_x_rBcrossN_x_invI))
+      jr /= denom
       jr /= contact.points.length
 
-      const impulse = N.multiplyScalar(jr)
-      if (!A.isStatic) {
-        A.velocity.x -= impulse.x * A.invMass
-        A.velocity.y -= impulse.y * A.invMass
-        A.angularVelocity -= jr * rA.cross(N) * A.invInertia
+      // Impulse
+      N.multiplyScalar(jr, impulse)
+      applyImpulse(A, impulse.multiplyScalar(-1), rA)
+      applyImpulse(B, impulse, rB)
+
+      // Tangent
+      vr.subtract(N.multiplyScalar(vrDotN), tangent)
+      if (tangent.isNearlyEqual(zeroVector, NEARLY_ZERO_MAGNITUDE)) {
+        return
+      } else {
+        tangent.normalize(tangent)
       }
-      if (!B.isStatic) {
-        B.velocity.x += impulse.x * B.invMass
-        B.velocity.y += impulse.y * B.invMass
-        B.angularVelocity += jr * rA.cross(N) * B.invInertia
+
+      // Frictional impulse magnitude (jf)
+      const vrDotTan = vr.dot(tangent)
+      const jf = (mass: number) => {
+        if (vrDotTan == 0 || vrDotTan * mass <= coeffs.friction.static * jr) {
+          return tangent.multiplyScalar(-mass * vrDotTan)
+        }
+        return tangent.multiplyScalar(-coeffs.friction.dynamic * jr)
       }
+      // Frictional impulse
+      jf(A.scaledMass).divideByScalar(-1, frictionalImpulse)
+      applyImpulse(A, frictionalImpulse, rA)
+      jf(B.scaledMass).divideByScalar(1, frictionalImpulse)
+      applyImpulse(B, frictionalImpulse, rB)
     }
+  }
+
+  function applyImpulse(body: Body, impulse: Vector, contactVector: Vector) {
+    if (body.isStatic) {
+      return
+    }
+    body.velocity.x += impulse.x * body.invScaledMass
+    body.velocity.y += impulse.y * body.invScaledMass
+    // body.angularVelocity += contactVector.cross(impulse) * body.invScaledInertia
   }
 }

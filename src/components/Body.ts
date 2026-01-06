@@ -41,26 +41,30 @@ export class Body extends Component implements BodyOptions {
   set scale(value: number) {
     this.transform.scale.set(value, value)
   }
+  get invScale(): number {
+    return 1 / this.scale
+  }
 
-  get mass(): number {
-    return this._mass * this.scale
-  }
-  get invMass(): number {
-    return this._invMass / this.scale
-  }
-  get inertia(): number {
-    return this._inertia * this.scale
-  }
-  get invInertia(): number {
-    return this._invInertia / this.scale
-  }
   restitution: number
   friction: Physics.Friction
 
-  private readonly _mass: number
-  private readonly _invMass: number
-  private readonly _inertia: number
-  private readonly _invInertia: number
+  readonly mass: number
+  get scaledMass(): number {
+    return this.mass * this.scale
+  }
+  readonly invMass: number
+  get invScaledMass(): number {
+    return this.invMass * this.invScale
+  }
+
+  readonly inertia: number
+  get scaledInertia(): number {
+    return this.inertia * this.scale
+  }
+  readonly invInertia: number
+  get invScaledInertia(): number {
+    return this.invInertia * this.invScale
+  }
 
   constructor(
     public readonly collider: Collider,
@@ -73,10 +77,10 @@ export class Body extends Component implements BodyOptions {
     this.isTrigger = options?.isTrigger ?? false
     this.layer = options?.layer ?? 1
 
-    this._mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
-    this._invMass = this._mass ? 1 / this._mass : 0
-    this._inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this._mass)
-    this._invInertia = this._inertia ? 1 / this._inertia : 0
+    this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
+    this.invMass = this.mass ? 1 / this.mass : 0
+    this.inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider)
+    this.invInertia = this.inertia ? 1 / this.inertia : 0
     this.restitution = clamp(options?.restitution ?? 0.2, 0, 1)
     this.friction = options?.friction ?? {
       static: 0.5,

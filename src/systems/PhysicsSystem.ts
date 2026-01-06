@@ -11,6 +11,7 @@ export interface PhysicsSystemOptions {
 
 export class PhysicsSystem extends System {
   private options: PhysicsSystemOptions
+  private accumulatedForces = new Map<number, Vector>()
 
   constructor(options?: Partial<PhysicsSystemOptions>) {
     super()
