@@ -149,7 +149,7 @@ export namespace Physics {
       jr /= denom
       jr /= contact.points.length
 
-      // Impulse
+      // Reaction impulse (Jr)
       N.multiplyScalar(jr, impulse)
       applyImpulse(A, impulse.multiplyScalar(-1), rA)
       applyImpulse(B, impulse, rB)
@@ -162,18 +162,18 @@ export namespace Physics {
         tangent.normalize(tangent)
       }
 
-      // Frictional impulse magnitude (jf)
+      // Frictional impulse (Jf)
       const vrDotTan = vr.dot(tangent)
-      const jf = (mass: number) => {
-        if (vrDotTan == 0 || vrDotTan * mass <= coeffs.friction.static * jr) {
-          return tangent.multiplyScalar(-mass * vrDotTan)
-        }
-        return tangent.multiplyScalar(-coeffs.friction.dynamic * jr)
+      const calculateFrictionalImpulse = (mass: number, negate: boolean = false) => {
+        const scalar =
+          vrDotTan == 0 || mass * vrDotTan <= coeffs.friction.static * jr
+            ? -mass * vrDotTan
+            : -coeffs.friction.dynamic * jr
+        return tangent.multiplyScalar(scalar * (negate ? -1 : 1), frictionalImpulse)
       }
-      // Frictional impulse
-      jf(A.scaledMass).divideByScalar(-1, frictionalImpulse)
+      calculateFrictionalImpulse(A.scaledMass, true)
       applyImpulse(A, frictionalImpulse, rA)
-      jf(B.scaledMass).divideByScalar(1, frictionalImpulse)
+      calculateFrictionalImpulse(B.scaledMass)
       applyImpulse(B, frictionalImpulse, rB)
     }
   }
@@ -184,6 +184,6 @@ export namespace Physics {
     }
     body.velocity.x += impulse.x * body.invScaledMass
     body.velocity.y += impulse.y * body.invScaledMass
-    // body.angularVelocity += contactVector.cross(impulse) * body.invScaledInertia
+    // body.angularVelocity = contactVector.cross(impulse) * body.invScaledInertia
   }
 }
