@@ -44,7 +44,7 @@ export abstract class Collider extends Component {
     return Collider.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
   }
 
-  setTransform(position: PointData, rotation: number, scale: PointData) {
+  setTransform(position: PointData, rotation: number /* ,scale: PointData */) {
     this.shouldUpdateVertices =
       this.transform.position.x != position.x ||
       this.transform.position.y != position.y ||
@@ -52,7 +52,7 @@ export abstract class Collider extends Component {
 
     this.transform.position.set(position.x, position.y)
     this.transform.rotation = rotation
-    this.transform.scale.set(scale.x, scale.y)
+    // this.transform.scale.set(scale.x, scale.y)
   }
 
   hasAABBIntersection(B: Collider): boolean {
@@ -130,7 +130,7 @@ export class CircleCollider extends Collider {
       max: { x: x + _radius, y: y + _radius },
     })
 
-    this.area = 2 * Math.PI * _radius
+    this.area = Math.PI * _radius * _radius
   }
 
   findContactWithCircle(B: CircleCollider, includePoints: boolean): Collision.Contact | undefined {

@@ -48,18 +48,23 @@ export class PhysicsSystem extends System {
         Physics.stepBody(body, gravity, PPM, dT)
         entity.position.copyFrom(body.position)
         entity.rotation = body.rotation
-        entity.scale.set(body.scale, body.scale)
+        // entity.scale.set(body.scale, body.scale)
       } else {
-        collider.setTransform(entity.position, entity.rotation, {
+        collider.setTransform(
+          entity.position,
+          entity.rotation /*, {
           x: entity.scale.x,
           y: entity.scale.x, // Dimensional scale not yet supported for colliders!
-        })
+        } */,
+        )
       }
       // Clear collided IDs from previous step
       entity.getComponent(CollisionSensor)?.collidedIds.clear()
     }
 
-    const colliderPairs = Collision.findAABBIntersectionIdPairs(colliders, (lA, lB) => true)
+    const colliderPairs = Collision.findAABBIntersectionIdPairs(colliders, (lA, lB) =>
+      Physics.canCollide(lA, lB, this.options.collisionLayerMap),
+    )
 
     let A: Entity, B: Entity
     let colliderA: Collider | undefined, colliderB: Collider | undefined

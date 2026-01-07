@@ -22,7 +22,6 @@ declare global {
     clampScalar<T extends PointData = Point>(min: number, max: number, outVector?: T): T
     divideBy<T extends PointData = Point>(other: T, outVector?: T): T
     divideByScalar<T extends PointData = Point>(scalar: number, outVector?: T): T
-    orthogonalize<T extends PointData = Vector>(outVector?: T): T
     isNearlyEqual(to: PointData, minDistance?: number): boolean
   }
 }
@@ -77,16 +76,6 @@ Point.prototype.divideByScalar = function <T extends PointData = Point>(
   outVector?: T,
 ): T {
   return this.divideBy(new Point(scalar, scalar) as PointData as T, outVector)
-}
-
-Vector.prototype.orthogonalize = function <T extends PointData = Vector>(this, outVector?: T): T {
-  if (!outVector) {
-    outVector = new Vector() as PointData as T
-  }
-  outVector.x = this.y
-  outVector.y = -this.x
-
-  return outVector
 }
 
 Point.prototype.isNearlyEqual = function (to: PointData, minDistance: number = 0.001): boolean {

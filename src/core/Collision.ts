@@ -82,22 +82,6 @@ export namespace Collision {
     return closestPoint
   }
 
-  export function findContacts(
-    // components: Collision.Actor[],
-    canCollide: (layerA: number, layerB: number) => boolean,
-    includePoints: boolean,
-  ): Contact[] {
-    const contacts: Contact[] = []
-    // const indexPairs = findAABBIntersectionIdPairs(components, canCollide)
-    // for (const [iA, iB] of indexPairs) {
-    //   const contact = components[iA]!.collider.findContact(components[iB]!.collider, includePoints)
-    //   if (contact) {
-    //     contacts.push(contact)
-    //   }
-    // }
-    return contacts
-  }
-
   export function findAABBIntersectionIdPairs(
     eColliders: EntityCollider[],
     canCollide: (layerA: number, layerB: number) => boolean,
