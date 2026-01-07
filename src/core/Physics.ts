@@ -23,7 +23,7 @@ export namespace Physics {
 
   export function calculateColliderInertia(collider: Collider, mass: number) {
     if (collider instanceof CircleCollider) {
-      return mass * Math.pow(collider._radius, 2) * 0.5
+      return mass * Math.pow(collider.radius, 2) * 0.5
     } else {
       const w = collider.aabb.max.x - collider.aabb.min.x
       const h = collider.aabb.max.y - collider.aabb.min.y

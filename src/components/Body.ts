@@ -10,7 +10,6 @@ export interface BodyOptions {
 
   position: PointData
   rotation: number
-  // scale: number
 
   restitution: number
   friction: Physics.Friction
@@ -36,15 +35,6 @@ export class Body extends Component implements BodyOptions {
   get rotation(): number {
     return this.transform.rotation
   }
-  // get scale(): number {
-  //   return this.transform.scale.x
-  // }
-  // set scale(value: number) {
-  //   this.transform.scale.set(value, value)
-  // }
-  // get invScale(): number {
-  //   return 1 / this.scale
-  // }
 
   private _restitution = 0.2
   public get restitution(): number {
@@ -101,12 +91,11 @@ export class Body extends Component implements BodyOptions {
     this.transform = new Transform({
       observer: {
         _onUpdate: (transform) =>
-          this.collider.setTransform(transform.position, transform.rotation /*, transform.scale */),
+          this.collider.setTransform(transform.position, transform.rotation),
       },
     })
     this.transform.position.set(options?.position?.x, options?.position?.y)
     this.transform.rotation = options?.rotation ?? 0
-    // this.transform.scale.set(options?.scale ?? 1)
   }
 
   applyForce(force: PointData, position: PointData) {

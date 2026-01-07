@@ -7,7 +7,6 @@ export abstract class Collider extends Component {
   layer = 1
 
   readonly vertices: Point[]
-  readonly normals: Vector[]
   protected transform = new Transform()
   private shouldUpdateVertices = true
 
@@ -22,14 +21,12 @@ export abstract class Collider extends Component {
 
   protected constructor(
     protected readonly _vertices: Point[],
-    protected readonly _normals: Vector[],
     protected readonly centroid: Point,
     public readonly aabb: Collision.AABB = { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } },
   ) {
     super()
 
     this.vertices = [..._vertices]
-    this.normals = [..._normals]
 
     this.updateVertices()
   }
@@ -44,7 +41,7 @@ export abstract class Collider extends Component {
     return Collider.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
   }
 
-  setTransform(position: PointData, rotation: number /* ,scale: PointData */) {
+  setTransform(position: PointData, rotation: number) {
     this.shouldUpdateVertices =
       this.transform.position.x != position.x ||
       this.transform.position.y != position.y ||
@@ -52,7 +49,6 @@ export abstract class Collider extends Component {
 
     this.transform.position.set(position.x, position.y)
     this.transform.rotation = rotation
-    // this.transform.scale.set(scale.x, scale.y)
   }
 
   hasAABBIntersection(B: Collider): boolean {
@@ -91,8 +87,6 @@ export abstract class Collider extends Component {
       const v = this.vertices[i]!
       this.transform.matrix.apply(this._vertices[i]!, v)
 
-      this._normals[i]!.rotate(this.transform.rotation, this.normals[i])
-
       minX = Math.min(minX, v.x)
       maxX = Math.max(maxX, v.x)
       minY = Math.min(minY, v.y)
@@ -116,21 +110,17 @@ export abstract class Collider extends Component {
 export class CircleCollider extends Collider {
   readonly area: number
 
-  get radius(): number {
-    return this._radius * this.transform.scale.x
-  }
-
   constructor(
     x: number,
     y: number,
-    public readonly _radius: number,
+    public readonly radius: number,
   ) {
-    super([], [], new Point(x, y), {
-      min: { x: x - _radius, y: y - _radius },
-      max: { x: x + _radius, y: y + _radius },
+    super([], new Point(x, y), {
+      min: { x: x - radius, y: y - radius },
+      max: { x: x + radius, y: y + radius },
     })
 
-    this.area = Math.PI * _radius * _radius
+    this.area = Math.PI * radius * radius
   }
 
   findContactWithCircle(B: CircleCollider, includePoints: boolean): Collision.Contact | undefined {
@@ -157,10 +147,11 @@ export class CircleCollider extends Collider {
     includePoints: boolean,
   ): Collision.Contact | undefined {
     const contact: Collision.Contact = { depth: Infinity, normal: new Vector() }
-    let axis!: Vector, cProj!: Range, vProj!: Range
+    let axis = new Vector()
+    let cProj!: Range, vProj!: Range
 
     for (let i = 0; i < B.vertices.length; i++) {
-      axis = B.normals[i]!
+      B.getAxis(i, axis)
       vProj = Collision.getVerticesProjectionRange(B.vertices, axis)
       cProj = Collision.getCircleProjectionRange(this.center, this.radius, axis)
       if (!Collision.hasProjectionOverlap(cProj, vProj)) {
@@ -169,12 +160,12 @@ export class CircleCollider extends Collider {
       const depth = Math.min(cProj.max - vProj.min, vProj.max - cProj.min)
       if (depth < contact.depth) {
         contact.depth = depth
-        contact.normal = axis
+        contact.normal = axis.clone()
       }
     }
     const closestVerIdx = Collision.getClosestVertexIndexToPoint(B.vertices, this.center)
     const closestVer = B.vertices[closestVerIdx]!
-    axis = closestVer.subtract(this.center).normalize()
+    closestVer.subtract(this.center, axis).normalize(axis)
     vProj = Collision.getVerticesProjectionRange(B.vertices, axis)
     cProj = Collision.getCircleProjectionRange(this.center, this.radius, axis)
     if (!Collision.hasProjectionOverlap(cProj, vProj)) {
@@ -183,7 +174,7 @@ export class CircleCollider extends Collider {
     const depth = Math.min(vProj.max - cProj.min, cProj.max - vProj.min)
     if (depth < contact.depth) {
       contact.depth = depth
-      contact.normal = axis
+      contact.normal = axis.clone()
     }
     const dir = this.center.subtract(B.center)
     if (dir.dot(contact.normal) < 0) {
@@ -212,14 +203,7 @@ export class PolygonCollider extends Collider {
     for (let i = 0; i < vertices.length; i += 2) {
       _vertices.push(new Point(vertices[i]!, vertices[i + 1]!))
     }
-    const normals: Vector[] = []
-    for (let i = 0; i < _vertices.length; i++) {
-      const vi = _vertices[i]!
-      const vi1 = _vertices[(i + 1) % _vertices.length]!
-      const face: Vector = vi1.subtract(vi)
-      normals.push(new Vector(face.y, -face.x).normalize())
-    }
-    super(_vertices, normals, Geometry.calculateCentroid(vertices))
+    super(_vertices, Geometry.calculateCentroid(vertices))
 
     this.area = (this.aabb.max.x - this.aabb.min.x) * (this.aabb.max.y - this.aabb.min.y)
   }
@@ -234,17 +218,9 @@ export class PolygonCollider extends Collider {
     return
   }
 
-  getRotatedNormal(index: number, output?: Vector) {
-    return this.normals[index]!.rotate(this.transform.rotation, output)
-  }
-  getTransformedVertex(index: number, output?: Point) {
-    return this.transform.matrix.apply(this.vertices[index]!, output)
-  }
-  getFaceAtIndex(index: number): { edges: [Vector, Vector]; delta: Vector } {
-    const edges: [Vector, Vector] = [
-      this.vertices[index]!,
-      this.vertices[(index + 1) % this.vertices.length]!,
-    ]
-    return { edges, delta: edges[1].subtract(edges[0]) }
+  getAxis(index: number, axis: Vector) {
+    this.vertices[(index + 1) % this.vertices.length]!.subtract(this.vertices[index]!, axis)
+      .orthogonalize(axis)
+      .normalize(axis)
   }
 }

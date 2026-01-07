@@ -11,7 +11,6 @@ export interface PhysicsSystemOptions {
 
 export class PhysicsSystem extends System {
   private options: PhysicsSystemOptions
-  private accumulatedForces = new Map<number, Vector>()
 
   constructor(options?: Partial<PhysicsSystemOptions>) {
     super()
@@ -48,15 +47,8 @@ export class PhysicsSystem extends System {
         Physics.stepBody(body, gravity, PPM, dT)
         entity.position.copyFrom(body.position)
         entity.rotation = body.rotation
-        // entity.scale.set(body.scale, body.scale)
       } else {
-        collider.setTransform(
-          entity.position,
-          entity.rotation /*, {
-          x: entity.scale.x,
-          y: entity.scale.x, // Dimensional scale not yet supported for colliders!
-        } */,
-        )
+        collider.setTransform(entity.position, entity.rotation)
       }
       // Clear collided IDs from previous step
       entity.getComponent(CollisionSensor)?.collidedIds.clear()

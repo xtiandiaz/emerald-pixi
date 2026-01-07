@@ -23,6 +23,7 @@ declare global {
     divideBy<T extends PointData = Point>(other: T, outVector?: T): T
     divideByScalar<T extends PointData = Point>(scalar: number, outVector?: T): T
     isNearlyEqual(to: PointData, minDistance?: number): boolean
+    orthogonalize<T extends PointData = Vector>(outVector?: T): T
   }
 }
 
@@ -80,4 +81,15 @@ Point.prototype.divideByScalar = function <T extends PointData = Point>(
 
 Point.prototype.isNearlyEqual = function (to: PointData, minDistance: number = 0.001): boolean {
   return this.subtract(to).magnitudeSquared() <= minDistance * minDistance
+}
+
+Vector.prototype.orthogonalize = function <T extends PointData = Vector>(this, outVector?: T): T {
+  if (!outVector) {
+    outVector = new Point() as PointData as T
+  }
+  const x = this.x
+  outVector.x = -this.y
+  outVector.y = x
+
+  return outVector
 }
