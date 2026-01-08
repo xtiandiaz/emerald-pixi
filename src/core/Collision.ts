@@ -82,6 +82,30 @@ export namespace Collision {
     return closestPoint
   }
 
+  export function evaluateContact(
+    projA: Range,
+    projB: Range,
+    axis: Vector,
+    contact: Contact,
+  ): boolean {
+    if (!Collision.hasProjectionOverlap(projA, projB)) {
+      return false
+    }
+    const depth = Math.min(projA.max - projB.min, projB.max - projA.min)
+    if (depth < contact.depth) {
+      contact.depth = depth
+      contact.normal = axis.clone()
+    }
+    return true
+  }
+
+  export function fixContactDirectionIfNeeded(contact: Contact, centerA: Point, centerB: Point) {
+    const dir = centerA.subtract(centerB)
+    if (dir.dot(contact.normal) < 0) {
+      contact.normal.multiplyScalar(-1, contact.normal)
+    }
+  }
+
   export function findAABBIntersectionIdPairs(
     eColliders: EntityCollider[],
     canCollide: (layerA: number, layerB: number) => boolean,
