@@ -1,5 +1,5 @@
 import type { Point, PointData } from 'pixi.js'
-import { average, CircleCollider, Collision, isNearlyEqual, Vector, type Collider } from '.'
+import { average, CircleCollider, Collision, isNearlyEqual, Vector, type Collider } from '../core'
 import { type Body } from '../components'
 
 export namespace Physics {

@@ -1,13 +1,13 @@
 import { Point, type PointData } from 'pixi.js'
 import {
   isNearlyEqual,
-  type Collider,
   type EntityComponent,
   type PolygonCollider,
   type Range,
   type Vector,
   type VectorData,
 } from '../core'
+import { Collider, Body } from '../components'
 import { Geometry } from './Geometry'
 
 export namespace Collision {
@@ -17,7 +17,10 @@ export namespace Collision {
   }
 
   type EntityCollider = EntityComponent<Collider>
+  type EntityBody = EntityComponent<Body>
+
   export type AABBIntersectionPair = [A: EntityCollider, B: EntityCollider]
+  export type AABBIntersectionBodyPair = [A: EntityBody, B: EntityBody]
 
   export interface ProjectionOverlap {
     depth: number
@@ -156,9 +159,31 @@ export namespace Collision {
     }
   }
 
-  export function findAABBIntersectionIdPairs(
+  export function findAABBIntersectionPairsForBodies(
+    eBodies: EntityBody[],
+    canCollide: (idA: number, layerA: number, idB: number, layerB: number) => boolean,
+  ): AABBIntersectionBodyPair[] {
+    const pairs: AABBIntersectionBodyPair[] = []
+    let eA!: EntityBody, eB!: EntityBody
+
+    for (let i = 0; i < eBodies.length - 1; i++) {
+      eA = eBodies[i]!
+      for (let j = i + 1; j < eBodies.length; j++) {
+        eB = eBodies[j]!
+        if (
+          canCollide(eA[0], eA[1].layer, eB[0], eB[1].layer) &&
+          eA[1].collider.hasAABBIntersection(eB[1].collider)
+        ) {
+          pairs.push([eA, eB])
+        }
+      }
+    }
+    return pairs
+  }
+
+  export function findAABBIntersectionPairs(
     eColliders: EntityCollider[],
-    canCollide: (layerA: number, layerB: number) => boolean,
+    canCollide: (idA: number, layerA: number, idB: number, layerB: number) => boolean,
   ): AABBIntersectionPair[] {
     const pairs: AABBIntersectionPair[] = []
     let eA!: EntityCollider, eB!: EntityCollider
@@ -167,7 +192,10 @@ export namespace Collision {
       eA = eColliders[i]!
       for (let j = i + 1; j < eColliders.length; j++) {
         eB = eColliders[j]!
-        if (canCollide(eA[1].layer, eB[1].layer) && eA[1].hasAABBIntersection(eB[1])) {
+        if (
+          canCollide(eA[0], eA[1].layer, eB[0], eB[1].layer) &&
+          eA[1].hasAABBIntersection(eB[1])
+        ) {
           pairs.push([eA, eB])
         }
       }

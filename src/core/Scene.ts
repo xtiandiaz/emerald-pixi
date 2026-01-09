@@ -1,18 +1,11 @@
-import { Assets, Rectangle } from 'pixi.js'
-import { World, System, Screen, type Disconnectable, type SignalBus } from './'
-import { ScreenResized } from '../signals'
-import { HUD } from '../ui'
-import type { PhysicsSystemOptions } from '../systems'
+import { Assets } from 'pixi.js'
+import { World, System, type Disconnectable, type SignalBus } from './'
 
 export abstract class Scene {
   abstract readonly systems: System[]
-  readonly hud = new HUD()
   protected connections: Disconnectable[] = []
 
-  constructor(
-    public readonly name: string,
-    public readonly physicsOptions?: Partial<PhysicsSystemOptions>,
-  ) {}
+  constructor(public readonly name: string) {}
 
   async load?(): Promise<void>
 
@@ -24,11 +17,6 @@ export abstract class Scene {
     this.build?.(world)
 
     this.systems.forEach((s) => s.init?.(world, signalBus))
-
-    this.connections.push(
-      signalBus.connect(ScreenResized, (s) => this.onScreenResized(s.width, s.height)),
-    )
-    this.onScreenResized(Screen.width, Screen.height)
   }
 
   deinit(): void {
@@ -36,9 +24,5 @@ export abstract class Scene {
 
     this.connections.forEach((c) => c.disconnect())
     this.systems.forEach((s) => s.deinit?.())
-  }
-
-  protected onScreenResized(w: number, h: number) {
-    this.hud.hitArea = new Rectangle(0, 0, w, h)
   }
 }

@@ -82,9 +82,9 @@ export class Body extends Component implements BodyOptions {
     this.inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this.mass)
     this.invInertia = this.inertia > 0 ? 1 / this.inertia : 0
 
-    if (options?.restitution) this.restitution = options.restitution
-    if (options?.friction) this.friction = options.friction
-    if (options?.angularDrag) this.angularDrag = options.angularDrag
+    this.restitution = options?.restitution ?? this._restitution
+    this.friction = options?.friction ?? this._friction
+    this.angularDrag = options?.angularDrag ?? this._angularDrag
 
     this.transform = new Transform({
       observer: {

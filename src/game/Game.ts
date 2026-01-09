@@ -1,15 +1,13 @@
-import { Application, Ticker, type ApplicationOptions } from 'pixi.js'
+import { Application, Ticker } from 'pixi.js'
 import { type FixedTime, type GameOptions, type GameState } from '.'
 import { Scene, Screen, World, type SignalBus, type Disconnectable, clamp } from '../core'
 import { SignalController } from '../controllers'
 import { ScreenResized } from '../signals'
-import { PhysicsSystem } from '../systems'
 
 export class Game<State extends GameState> extends Application {
   protected readonly world = new World()
   protected readonly signalController = new SignalController()
   protected scene?: Scene
-  private physicsSystem!: PhysicsSystem
   private fixedTime: FixedTime = {
     step: 1 / 60,
     reserve: 0,
@@ -30,8 +28,6 @@ export class Game<State extends GameState> extends Application {
 
     this.world.init()
 
-    this.physicsSystem = new PhysicsSystem(options.physics)
-    this.physicsSystem.init(this.world, this.signalController)
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
     this.ticker.add(this.fixedUpdate, this)
@@ -68,13 +64,7 @@ export class Game<State extends GameState> extends Application {
 
     if (this.scene) {
       this.scene.deinit()
-      this.stage.removeChild(this.scene.hud)
     }
-    if (nextScene.physicsOptions) {
-      this.physicsSystem.resetOptions(nextScene.physicsOptions)
-    }
-
-    this.stage.addChild(nextScene.hud)
 
     this.scene = nextScene
   }
@@ -86,8 +76,6 @@ export class Game<State extends GameState> extends Application {
     this.fixedTime.reserve = clamp(this.fixedTime.reserve + ticker.deltaMS, 0, 0.1)
 
     while (this.fixedTime.reserve >= this.fixedTime.step) {
-      this.physicsSystem.fixedUpdate(this.world, this.signalController, this.fixedTime.step)
-
       this.scene?.systems.forEach((s) => {
         s.fixedUpdate?.(this.world, this.signalController, this.fixedTime.step)
       })

@@ -224,12 +224,7 @@ export class PolygonCollider extends Collider {
       return
     }
     if (includePoints) {
-      const points = Collision.findContactPoints(A.vertices, B.vertices)
-      if (points.length > 1) {
-        contact.points = [points[0]!.add(points[1]!).multiplyScalar(0.5)]
-      } else {
-        contact.points = points
-      }
+      contact.points = Collision.findContactPoints(A.vertices, B.vertices)
     }
     return contact
   }

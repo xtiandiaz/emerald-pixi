@@ -1,5 +1,6 @@
 import type { Point } from 'pixi.js'
-import { Physics, Vector, type Collision } from '../core'
+import { Physics } from './'
+import { Vector, type Collision } from '../core'
 import { Body } from '../components'
 import { ExtraMath } from '../extras'
 
@@ -94,9 +95,6 @@ export class PhysicsEngine {
       const Jr = this.Jrs[i]!
       Jr.add(N.multiplyScalar(this.jrs[i]! / massDenom / pointCount), Jr)
     }
-
-    // applyImpulse(resA)
-    // applyImpulse(resB)
 
     for (let i = 0; i < pointCount; i++) {
       this.resetRotationRadii(A, B, contact.points[i]!, i)
