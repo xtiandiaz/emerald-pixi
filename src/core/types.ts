@@ -1,7 +1,8 @@
 import { System, Signal, type Component, Entity } from './'
-import { Point } from 'pixi.js'
+import { Point, type PointData } from 'pixi.js'
 
 export { Point as Vector }
+export type { PointData as VectorData }
 
 export interface Range {
   min: number

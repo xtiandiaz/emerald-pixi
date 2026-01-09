@@ -1,6 +1,8 @@
 import { System, World, Vector, type SignalBus } from '../core'
 import { Collider, Collision, Entity, Physics } from '../'
 import { Body, CollisionSensor } from '../components'
+import { Graphics, RenderLayer } from 'pixi.js'
+import { PhysicsEngine } from '../physics'
 
 export interface PhysicsSystemOptions {
   gravity: Physics.Gravity
@@ -10,7 +12,9 @@ export interface PhysicsSystemOptions {
 }
 
 export class PhysicsSystem extends System {
+  private engine = new PhysicsEngine()
   private options: PhysicsSystemOptions
+  private debug = new Graphics()
 
   constructor(options?: Partial<PhysicsSystemOptions>) {
     super()
@@ -33,18 +37,27 @@ export class PhysicsSystem extends System {
     }
   }
 
+  init(world: World, signalBus: SignalBus): void {
+    world.addChild(this.debug)
+    world.getLayer(World.Layer.DEBUG).attach(this.debug)
+  }
+
   fixedUpdate(world: World, signalBus: SignalBus, dT: number): void {
     const gravity = this.options.gravity
     const PPM = this.options.PPM
     const colliders = world.colliders
     let entity!: Entity, body: Body | undefined
 
+    this.debug.clear()
+
+    // dT /= this.options.iterations
+    // for (let i = 0; i < this.options.iterations; i++) {
     for (const [id, collider] of colliders) {
       entity = world.getEntity(id)!
 
       body = entity.getComponent(Body)
       if (body) {
-        Physics.stepBody(body, gravity, PPM, dT)
+        this.engine.stepBody(body, gravity, PPM, dT)
         entity.position.copyFrom(body.position)
         entity.rotation = body.rotation
       } else {
@@ -55,7 +68,7 @@ export class PhysicsSystem extends System {
     }
 
     const colliderPairs = Collision.findAABBIntersectionIdPairs(colliders, (lA, lB) =>
-      Physics.canCollide(lA, lB, this.options.collisionLayerMap),
+      Collision.canCollide(lA, lB, this.options.collisionLayerMap),
     )
 
     let A: Entity, B: Entity
@@ -79,6 +92,7 @@ export class PhysicsSystem extends System {
       if (!contact) {
         continue
       }
+      this.drawContact(contact)
 
       sensor = A.getComponent(CollisionSensor)
       tag = B.getTag()
@@ -94,8 +108,17 @@ export class PhysicsSystem extends System {
       if (!bodyA || !bodyB) {
         continue
       }
-      Physics.separateBodies(bodyA, bodyB, contact.normal.multiplyScalar(contact.depth))
-      Physics.resolveCollision(bodyA, bodyB, contact)
+
+      this.engine.separateBodies(bodyA, bodyB, contact.normal.multiplyScalar(contact.depth))
+
+      this.engine.resolveCollision(bodyA, bodyB, contact)
+    }
+    // }
+  }
+
+  drawContact(contact: Collision.Contact) {
+    for (const point of contact.points!) {
+      this.debug.circle(point.x, point.y, 5).stroke({ color: 0xffffff, width: 2 })
     }
   }
 }

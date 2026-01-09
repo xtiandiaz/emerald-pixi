@@ -3,17 +3,17 @@ import { Point } from 'pixi.js'
 export namespace Geometry {
   export type Segment = { a: Point; b: Point }
 
-  export function findClosestPointOnSegment(pFrom: Point, segment: Geometry.Segment): Point {
-    const ap = pFrom.subtract(segment.a)
+  export function findClosestPointAtSegment(origin: Point, segment: Geometry.Segment): Point {
+    const ao = origin.subtract(segment.a)
     const ab = segment.b.subtract(segment.a)
     const segmentDistSq = ab.magnitudeSquared()
-    const proj = ap.dot(ab) / segmentDistSq
-    if (proj <= 0) {
+    const normDist = ao.dot(ab) / segmentDistSq
+    if (normDist <= 0) {
       return segment.a
-    } else if (proj >= 1) {
+    } else if (normDist >= 1) {
       return segment.b
     } else {
-      return segment.a.add(ab.multiplyScalar(proj))
+      return segment.a.add(ab.multiplyScalar(normDist))
     }
   }
 

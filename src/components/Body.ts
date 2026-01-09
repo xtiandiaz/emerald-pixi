@@ -5,7 +5,6 @@ import { clamp01, Physics } from '../'
 export interface BodyOptions {
   isStatic: boolean
   isKinematic: boolean
-  isTrigger: boolean
   layer?: number
 
   position: PointData
@@ -19,7 +18,7 @@ export interface BodyOptions {
 export class Body extends Component implements BodyOptions {
   isStatic: boolean
   isKinematic: boolean
-  isTrigger: boolean
+
   layer: number
 
   readonly velocity = new Vector()
@@ -76,13 +75,12 @@ export class Body extends Component implements BodyOptions {
 
     this.isStatic = options?.isStatic ?? false
     this.isKinematic = options?.isKinematic ?? false
-    this.isTrigger = options?.isTrigger ?? false
     this.layer = options?.layer ?? 1
 
-    this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area)
-    this.invMass = this.mass ? 1 / this.mass : 0
+    this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area, 1)
+    this.invMass = this.mass > 0 ? 1 / this.mass : 0
     this.inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this.mass)
-    this.invInertia = this.inertia ? 1 / this.inertia : 0
+    this.invInertia = this.inertia > 0 ? 1 / this.inertia : 0
 
     if (options?.restitution) this.restitution = options.restitution
     if (options?.friction) this.friction = options.friction

@@ -1,5 +1,5 @@
 import { Point, Transform, type PointData } from 'pixi.js'
-import { Component, Vector, type Range } from '../core'
+import { Component, Vector, type Range, type VectorData } from '../core'
 import { Collision } from '../core'
 import { Geometry } from '../core'
 
@@ -26,7 +26,7 @@ export abstract class Collider extends Component {
   ) {
     super()
 
-    this.vertices = [..._vertices]
+    this.vertices = _vertices.map((v) => v.clone())
 
     this.updateVertices()
   }
@@ -59,14 +59,20 @@ export abstract class Collider extends Component {
   }
 
   findContact(B: Collider, includePoints: boolean = false): Collision.Contact | undefined {
-    this.updateVerticesIfNeeded()
+    const A = this
+    A.updateVerticesIfNeeded()
     B.updateVerticesIfNeeded()
 
+    let contact: Collision.Contact | undefined
     if (B instanceof CircleCollider) {
-      return this.findContactWithCircle(B, includePoints)
+      contact = A.findContactWithCircle(B, includePoints)
     } else if (B instanceof PolygonCollider) {
-      return this.findContactWithPolygon(B, includePoints)
+      contact = A.findContactWithPolygon(B, includePoints)
     }
+    if (contact) {
+      Collision.correctContactDirectionIfNeeded(A, B, contact)
+    }
+    return contact
   }
 
   abstract findContactWithCircle(
@@ -95,7 +101,6 @@ export abstract class Collider extends Component {
       minY = Math.min(minY, v.y)
       maxY = Math.max(maxY, v.y)
     }
-
     this.aabb.min.x = minX
     this.aabb.min.y = minY
     this.aabb.max.x = maxX
@@ -152,16 +157,13 @@ export class CircleCollider extends Collider {
     const A = this
     const contact: Collision.Contact = { depth: Infinity, normal: new Vector() }
     if (
-      !A.projectWithPolygonAndEvaluateContact(B, contact) ||
-      !B.projectWithAnotherAndEvaluateContact(A, contact)
+      !A.evaluatePolygonProjectionOverlap(B, contact) ||
+      !B.evaluateProjectionOverlap(A, contact)
     ) {
       return
     }
-
-    Collision.fixContactDirectionIfNeeded(contact, A.center, B.center)
-
     if (includePoints) {
-      contact.points = [Collision.findClosestPointOnVertices(A.center, B.vertices)]
+      contact.points = [Collision.findContactPointsOnPolygon(A.center, B.vertices).cp1]
     }
     return contact
   }
@@ -170,20 +172,20 @@ export class CircleCollider extends Collider {
     return Collision.getCircleProjectionRange(this.center, this.radius, axis)
   }
 
-  protected projectWithPolygonAndEvaluateContact(
+  protected evaluatePolygonProjectionOverlap(
     polygon: PolygonCollider,
-    contact: Collision.Contact,
+    overlap: Collision.ProjectionOverlap,
   ): boolean {
     const closestVerIdx = Collision.getClosestVertexIndexToPoint(polygon.vertices, this.center)
     const closestVer = polygon.vertices[closestVerIdx]!
     const axis = new Vector()
     closestVer.subtract(this.center, axis).normalize(axis)
 
-    return Collision.evaluateContact(
+    return Collision.evaluateProjectionOverlap(
       Collision.getCircleProjectionRange(this.center, this.radius, axis),
-      Collision.getVerticesProjectionRange(polygon.vertices, axis),
+      Collision.getProjectionRange(polygon.vertices, axis),
       axis,
-      contact,
+      overlap,
     )
   }
 
@@ -211,43 +213,51 @@ export class PolygonCollider extends Collider {
   findContactWithCircle(B: CircleCollider, includePoints: boolean): Collision.Contact | undefined {
     return B.findContactWithPolygon(this, includePoints)
   }
+
   findContactWithPolygon(
     B: PolygonCollider,
     includePoints: boolean,
   ): Collision.Contact | undefined {
     const A = this
     const contact: Collision.Contact = { depth: Infinity, normal: new Vector() }
-    if (
-      !A.projectWithAnotherAndEvaluateContact(B, contact) ||
-      !B.projectWithAnotherAndEvaluateContact(A, contact)
-    ) {
+    if (!A.evaluateProjectionOverlap(B, contact) || !B.evaluateProjectionOverlap(A, contact)) {
       return
     }
-
-    Collision.fixContactDirectionIfNeeded(contact, A.center, B.center)
+    if (includePoints) {
+      const points = Collision.findContactPoints(A.vertices, B.vertices)
+      if (points.length > 1) {
+        contact.points = [points[0]!.add(points[1]!).multiplyScalar(0.5)]
+      } else {
+        contact.points = points
+      }
+    }
+    return contact
   }
 
-  getProjectionRange(axis: Vector): Range {
-    return Collision.getVerticesProjectionRange(this.vertices, axis)
+  getProjectionRange(axis: VectorData): Range {
+    return Collision.getProjectionRange(this.vertices, axis)
   }
 
-  getAxis(index: number, axis: Vector) {
-    this.vertices[(index + 1) % this.vertices.length]!.subtract(this.vertices[index]!, axis)
-      .orthogonalize(axis)
-      .normalize(axis)
+  getAxis(index: number, ref_axis: Vector) {
+    this.vertices[(index + 1) % this.vertices.length]!.subtract(this.vertices[index]!, ref_axis)
+      .orthogonalize(ref_axis)
+      .normalize(ref_axis)
   }
 
-  projectWithAnotherAndEvaluateContact(another: Collider, contact: Collision.Contact): boolean {
+  evaluateProjectionOverlap(
+    other: Collider,
+    ref_projOverlap: Collision.ProjectionOverlap,
+  ): boolean {
     const axis = new Vector()
 
     for (let i = 0; i < this.vertices.length; i++) {
       this.getAxis(i, axis)
       if (
-        !Collision.evaluateContact(
+        !Collision.evaluateProjectionOverlap(
           this.getProjectionRange(axis),
-          another.getProjectionRange(axis),
+          other.getProjectionRange(axis),
           axis,
-          contact,
+          ref_projOverlap,
         )
       ) {
         return false

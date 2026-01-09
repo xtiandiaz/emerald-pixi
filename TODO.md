@@ -1,8 +1,13 @@
 # TODO
 
+# General
+
+- Add randomness utils (from Tungsten)
+
 # Physics
 
 - Implement polygon-to-polygon collision
+- Calculate mass and inertia for polygons of any number of vertices
 
 # Input
 

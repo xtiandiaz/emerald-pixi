@@ -8,7 +8,7 @@ import {
   type SomeEntity,
 } from './'
 import { Body } from '../components'
-import { Container } from 'pixi.js'
+import { Container, RenderLayer } from 'pixi.js'
 
 export class World extends Container {
   private nextEntityId = 1
@@ -19,6 +19,9 @@ export class World extends Container {
   private componentMap = new Map<number, Map<string, Component>>()
   private colliderMap = new Map<number, Collider>()
   private bodyMap = new Map<number, Body>()
+  private renderLayers = new Map(
+    [World.Layer.ENTITY, World.Layer.UI, World.Layer.DEBUG].map((key) => [key, new RenderLayer()]),
+  )
 
   get entities(): [id: number, Entity][] {
     return [...this.entityMap.entries()]
@@ -28,6 +31,14 @@ export class World extends Container {
   }
   get bodies(): EntityComponent<Body>[] {
     return [...this.bodyMap.entries()]
+  }
+
+  init() {
+    this.renderLayers.forEach((rl) => this.addChild(rl))
+  }
+
+  getLayer(key: World.Layer): RenderLayer {
+    return this.renderLayers.get(key)!
   }
 
   createEntity<T extends Entity>(type: SomeEntity<T>): T {
@@ -47,6 +58,8 @@ export class World extends Container {
     this.componentMap.set(id, new Map())
 
     entity.init()
+
+    this.getLayer(World.Layer.ENTITY).attach(entity)
     this.addChild(entity)
 
     return entity
@@ -195,5 +208,13 @@ export class World extends Container {
 
     this.removeChildren()
     this.entityMap.clear()
+  }
+}
+
+export namespace World {
+  export enum Layer {
+    ENTITY = 'entity',
+    UI = 'ui',
+    DEBUG = 'debug',
   }
 }

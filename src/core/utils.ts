@@ -1,5 +1,9 @@
-import type { Bounds, Point, PointData } from 'pixi.js'
+import type { Point } from 'pixi.js'
 import { Direction, Vector } from '.'
+
+export function isNearlyEqual(a: number, b: number, minDifference: number = 0.001): boolean {
+  return Math.abs(b - a) <= minDifference
+}
 
 export function sign(value: number): number {
   return value < 0 ? -1 : 1

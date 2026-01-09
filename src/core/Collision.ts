@@ -1,5 +1,13 @@
-import type { Point, PointData } from 'pixi.js'
-import type { Collider, EntityComponent, Range, Vector } from '../core'
+import { Point, type PointData } from 'pixi.js'
+import {
+  isNearlyEqual,
+  type Collider,
+  type EntityComponent,
+  type PolygonCollider,
+  type Range,
+  type Vector,
+  type VectorData,
+} from '../core'
 import { Geometry } from './Geometry'
 
 export namespace Collision {
@@ -11,9 +19,19 @@ export namespace Collision {
   type EntityCollider = EntityComponent<Collider>
   export type AABBIntersectionPair = [A: EntityCollider, B: EntityCollider]
 
-  export interface Contact {
+  export interface ProjectionOverlap {
     depth: number
     normal: Vector
+  }
+
+  export interface ContactPointTracking {
+    cp1: Point
+    cp1_minDistSqrd: number
+    cp2?: Point
+    validCount: 1 | 2
+  }
+
+  export interface Contact extends ProjectionOverlap {
     points?: Point[]
   }
 
@@ -25,6 +43,10 @@ export namespace Collision {
 
   export function hasProjectionOverlap(a: Range, b: Range): boolean {
     return !(a.max <= b.min || b.max <= a.min)
+  }
+
+  export function canCollide(layerA: number, layerB: number, map?: LayerMap): boolean {
+    return !map || (((map.get(layerA) ?? 0) & layerB) | ((map.get(layerB) ?? 0) & layerA)) != 0
   }
 
   export function getClosestVertexIndexToPoint(vertices: Point[], p: PointData): number {
@@ -40,7 +62,7 @@ export namespace Collision {
     return index
   }
 
-  export function getVerticesProjectionRange(vertices: PointData[], axis: Vector): Range {
+  export function getProjectionRange(vertices: PointData[], axis: VectorData): Range {
     const range: Range = { min: Infinity, max: -Infinity }
     let proj: number
 
@@ -63,46 +85,74 @@ export namespace Collision {
     return projs[0] < projs[1] ? { min: projs[0], max: projs[1] } : { min: projs[1], max: projs[0] }
   }
 
-  export function findClosestPointOnVertices(fromP: Point, vertices: Point[]): Point {
-    let closestPoint!: Point
+  export function findContactPointsOnPolygon(
+    origin: Point,
+    vertices: Point[],
+    ref_tracking?: ContactPointTracking,
+  ): ContactPointTracking {
+    if (!ref_tracking) {
+      ref_tracking = { cp1: new Point(), cp1_minDistSqrd: Infinity, validCount: 1 }
+    }
     let segment!: Geometry.Segment
-    let minDistSqrd: number = Infinity
     for (let i = 0; i < vertices.length; i++) {
       segment = {
         a: vertices[i]!,
         b: vertices[(i + 1) % vertices.length]!,
       }
-      const cp = Geometry.findClosestPointOnSegment(fromP, segment)
-      const distSqrd = fromP.subtract(cp).magnitudeSquared()
-      if (distSqrd < minDistSqrd) {
-        closestPoint = cp
-        minDistSqrd = distSqrd
+      const cp = Geometry.findClosestPointAtSegment(origin, segment)
+      const distSqrd = origin.subtract(cp).magnitudeSquared()
+      if (
+        ref_tracking.cp2 &&
+        isNearlyEqual(distSqrd, ref_tracking.cp1_minDistSqrd) &&
+        !ref_tracking.cp1.isNearlyEqual(cp)
+      ) {
+        ref_tracking.cp2.set(cp.x, cp.y)
+        ref_tracking.validCount = 2
+      } else if (distSqrd < ref_tracking.cp1_minDistSqrd) {
+        ref_tracking.cp1.set(cp.x, cp.y)
+        ref_tracking.cp1_minDistSqrd = distSqrd
+        ref_tracking.validCount = 1
       }
     }
-    return closestPoint
+    return ref_tracking
   }
 
-  export function evaluateContact(
+  export function evaluateProjectionOverlap(
     projA: Range,
     projB: Range,
-    axis: Vector,
-    contact: Contact,
+    axis: VectorData,
+    ref_projOverlap: ProjectionOverlap,
   ): boolean {
     if (!Collision.hasProjectionOverlap(projA, projB)) {
       return false
     }
     const depth = Math.min(projA.max - projB.min, projB.max - projA.min)
-    if (depth < contact.depth) {
-      contact.depth = depth
-      contact.normal = axis.clone()
+    if (depth < ref_projOverlap.depth) {
+      ref_projOverlap.depth = depth
+      ref_projOverlap.normal.set(axis.x, axis.y)
     }
     return true
   }
 
-  export function fixContactDirectionIfNeeded(contact: Contact, centerA: Point, centerB: Point) {
-    const dir = centerA.subtract(centerB)
-    if (dir.dot(contact.normal) < 0) {
-      contact.normal.multiplyScalar(-1, contact.normal)
+  export function findContactPoints(verticesA: Point[], verticesB: Point[]): Point[] {
+    const tracking: ContactPointTracking = {
+      cp1: new Point(),
+      cp1_minDistSqrd: Infinity,
+      cp2: new Point(),
+      validCount: 1,
+    }
+    for (let i = 0; i < verticesA.length; i++) {
+      findContactPointsOnPolygon(verticesA[i]!, verticesB, tracking)
+    }
+    for (let i = 0; i < verticesB.length; i++) {
+      findContactPointsOnPolygon(verticesB[i]!, verticesA, tracking)
+    }
+    return tracking.validCount == 2 ? [tracking.cp1, tracking.cp2!] : [tracking.cp1]
+  }
+
+  export function correctContactDirectionIfNeeded(A: Collider, B: Collider, ref_contact: Contact) {
+    if (B.center.subtract(A.center).dot(ref_contact.normal) < 0) {
+      ref_contact.normal.multiplyScalar(-1, ref_contact.normal)
     }
   }
 
