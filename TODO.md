@@ -3,11 +3,12 @@
 # General
 
 - Add randomness utils (from Tungsten)
+- Add probability utils
 
 # Physics
 
-- Implement polygon-to-polygon collision
 - Calculate mass and inertia for polygons of any number of vertices
+- Enable tagless collider sensor and use to detect gone bodies to remove
 
 # Input
 
