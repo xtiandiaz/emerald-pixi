@@ -1,5 +1,5 @@
 import type { SignalBus, Disconnectable, World } from './'
-import type { HUD } from '../ui'
+import { Input } from '../input'
 
 export class System {
   protected connections: Disconnectable[] = []
@@ -13,4 +13,6 @@ export class System {
 
   fixedUpdate?(world: World, signalBus: SignalBus, dT: number): void
   update?(world: World, signalBus: SignalBus, dT: number): void
+
+  input?(action: Input.Action): void
 }
