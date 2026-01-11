@@ -1,5 +1,4 @@
 export * from './Body'
-export * from './Collider'
 export * from './CollisionSensor'
 export * from './GestureTarget'
 export * from './gesture-components'

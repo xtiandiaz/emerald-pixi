@@ -5,7 +5,7 @@ import { ScreenResized } from '../signals'
 
 export abstract class Scene {
   abstract readonly systems: System[]
-  abstract readonly inputMap: Record<string, Input.Control>
+  abstract readonly inputMap?: Record<string, Input.Control>
   protected input = new InputController<keyof typeof this.inputMap>()
   protected connections: Disconnectable[] = []
   private hitArea = new Rectangle(0, 0, Screen.width, Screen.height)
@@ -23,11 +23,14 @@ export abstract class Scene {
 
     this.systems.forEach((s) => s.init?.(world, signalBus))
 
-    world.interactive = true
-    world.hitArea = this.hitArea
-    this.input.init(this.inputMap, world, (signal) => this.onInput?.(signal, world))
+    if (this.inputMap) {
+      world.interactive = true
+      world.hitArea = this.hitArea
 
-    this.connections.push(signalBus.connect(ScreenResized, (_) => this.onScreenResized()))
+      this.input.init(this.inputMap, world, (signal) => this.onInput?.(signal, world))
+
+      this.connections.push(signalBus.connect(ScreenResized, (_) => this.onScreenResized()))
+    }
   }
 
   deinit(): void {

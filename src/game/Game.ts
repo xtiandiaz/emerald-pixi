@@ -26,8 +26,6 @@ export class Game<State extends GameState> extends Application {
   async init(options: Partial<GameOptions>, startScene?: string): Promise<void> {
     await super.init(options)
 
-    this.world.init()
-
     this.connections.push(...(this.connect?.(this.signalController) ?? []))
 
     this.ticker.add(this.fixedUpdate, this)

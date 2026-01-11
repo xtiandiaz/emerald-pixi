@@ -46,11 +46,19 @@ export class PhysicsSystem extends System {
     const PPM = this.options.PPM
     const bodies = world._bodies
     const separation = new Vector()
+    const collisions: Collision.Instance[] = []
+    let contact: Collision.Contact | undefined
     let collision: Collision.Instance
+
+    for (let i = 0; i < bodies.length; i++) {
+      bodies[i]![1].collidedIds.clear()
+    }
 
     dT /= this.options.iterations
     for (let it = 0; it < this.options.iterations; it++) {
       this.debug.clear()
+
+      collisions.length = 0
 
       for (let i = 0; i < bodies.length; i++) {
         const [entityId, body] = bodies[i]!
@@ -62,9 +70,25 @@ export class PhysicsSystem extends System {
         entity.rotation = body.rotation
       }
 
-      const collisions = Collision.findInstances(bodies, (lA, lB) =>
-        Collision.canCollide(lA, lB, this.options.collisionLayerMap),
-      )
+      for (let i = 0; i < bodies.length - 1; i++) {
+        const [idA, A] = bodies[i]!
+        for (let j = i + 1; j < bodies.length; j++) {
+          const [idB, B] = bodies[j]!
+
+          contact = Collision.findContactIfCanCollide(
+            A,
+            B,
+            (lA, lB) => this.canCollide(lA, lB),
+            true,
+          )
+          if (contact) {
+            collisions.push({ A, B, ...contact })
+
+            A.collidedIds.add(idB)
+            B.collidedIds.add(idA)
+          }
+        }
+      }
 
       for (let i = 0; i < collisions.length; i++) {
         collision = collisions[i]!
@@ -82,7 +106,11 @@ export class PhysicsSystem extends System {
     }
   }
 
-  private drawCollision(contact: Collision.ShapeContact) {
+  private canCollide(layerA: number, layerB: number): boolean {
+    return Collision.canCollide(layerA, layerB, this.options.collisionLayerMap)
+  }
+
+  private drawCollision(contact: Collision.Contact) {
     for (const point of contact.points!) {
       this.debug.circle(point.x, point.y, 5).stroke({ color: 0xffffff, width: 2 })
     }

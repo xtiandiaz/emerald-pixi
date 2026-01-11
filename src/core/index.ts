@@ -9,7 +9,7 @@ export * from './World'
 export * from './Scene'
 
 export * from './Geometry'
-export * from '../components/Collider'
+export * from './Collider'
 export * from './Collision'
 export * from '../physics/Physics'
 

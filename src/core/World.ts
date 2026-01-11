@@ -1,5 +1,4 @@
 import {
-  Collider,
   Entity,
   SimpleEntity,
   type Component,
@@ -7,21 +6,19 @@ import {
   type SomeComponent,
   type SomeEntity,
 } from './'
-import { Body } from '../components'
+import { Body, CollisionSensor } from '../components'
 import { Container, RenderLayer } from 'pixi.js'
 
 export class World extends Container {
-  readonly _colliders: EntityComponent<Collider>[] = []
   readonly _bodies: EntityComponent<Body>[] = []
+  readonly _collisionSensors: EntityComponent<CollisionSensor>[] = []
 
   private nextEntityId = 1
   private tagMap = new Map<number, string>()
   private taggedIds = new Map<string, Set<number>>()
-  private entityMap = new Map<number, Entity>()
-  private entityTypeMap = new Map<string, Entity>()
-  private componentMap = new Map<number, Map<string, Component>>()
-  private colliderMap = new Map<number, Collider>()
-  private bodyMap = new Map<number, Body>()
+  private idToEntityMap = new Map<number, Entity>()
+  private typeToEntityMap = new Map<string, Entity>()
+  private entityIdToComponentsMap = new Map<number, Map<string, Component>>()
   private renderLayers = new Map(
     [World.Layer.ENTITIES, World.Layer.UI, World.Layer.DEBUG].map((key) => [
       key,
@@ -29,7 +26,9 @@ export class World extends Container {
     ]),
   )
 
-  init() {
+  constructor() {
+    super()
+
     this.renderLayers.forEach((rl) => this.addChild(rl))
   }
 
@@ -49,9 +48,9 @@ export class World extends Container {
       () => this.getEntityTag(id),
     )
 
-    this.entityMap.set(id, entity)
-    this.entityTypeMap.set(type.name, entity)
-    this.componentMap.set(id, new Map())
+    this.idToEntityMap.set(id, entity)
+    this.typeToEntityMap.set(type.name, entity)
+    this.entityIdToComponentsMap.set(id, new Map())
 
     entity.init()
 
@@ -68,32 +67,32 @@ export class World extends Container {
   }
 
   hasEntity(id: number): boolean {
-    return this.componentMap.has(id)
+    return this.entityIdToComponentsMap.has(id)
   }
 
   getEntity<T extends Entity>(id: number): T | undefined {
-    return this.entityMap.get(id) as T
+    return this.idToEntityMap.get(id) as T
   }
 
   getEntityByType<T extends Entity>(type: SomeEntity<T>): T | undefined {
-    return this.entityTypeMap.get(type.name) as T
+    return this.typeToEntityMap.get(type.name) as T
   }
 
   getEntitiesByTag(tag: string): Entity[] {
-    return [...(this.taggedIds.get(tag) ?? [])].map((id) => this.entityMap.get(id)!)
+    return [...(this.taggedIds.get(tag) ?? [])].map((id) => this.idToEntityMap.get(id)!)
   }
 
   removeEntity(id: number) {
-    const entity = this.entityMap.get(id)
-    if (entity) {
-      this.removeChild(entity)
-      this.entityMap.delete(id)
-    } else {
+    const entity = this.idToEntityMap.get(id)
+    if (!entity) {
       return
     }
-    this.componentMap.delete(id)
-    this.colliderMap.delete(id)
-    this.bodyMap.delete(id)
+    this.removeChild(entity)
+    this.idToEntityMap.delete(id)
+    this.entityIdToComponentsMap.delete(id)
+
+    this.deleteBodyEntry(id)
+    this.deleteCollisionSensorEntry(id)
 
     const tag = this.tagMap.get(id)
     if (tag) {
@@ -103,7 +102,7 @@ export class World extends Container {
   }
 
   tag(entityId: number, tag: string): Entity | undefined {
-    const entity = this.entityMap.get(entityId)
+    const entity = this.idToEntityMap.get(entityId)
     if (!entity) {
       return
     }
@@ -126,18 +125,18 @@ export class World extends Container {
   }
 
   hasComponent<T extends Component>(entityId: number, type: SomeComponent<T>): boolean {
-    return this.componentMap.get(entityId)?.has(type.name) ?? false
+    return this.entityIdToComponentsMap.get(entityId)?.has(type.name) ?? false
   }
 
   getComponent<T extends Component>(entityId: number, type: SomeComponent<T>): T | undefined {
-    return this.componentMap.get(entityId)?.get(type.name) as T
+    return this.entityIdToComponentsMap.get(entityId)?.get(type.name) as T
   }
 
   addComponent<T extends Component, U extends T[]>(
     entityId: number,
     ...components: U
   ): U[0] | undefined {
-    const cMap = this.componentMap.get(entityId)
+    const cMap = this.entityIdToComponentsMap.get(entityId)
     if (!cMap) {
       console.error('Undefined entity', entityId)
       return
@@ -145,12 +144,10 @@ export class World extends Container {
     for (const c of components) {
       cMap.set(c.constructor.name, c)
 
-      if (c instanceof Collider) {
-        this.colliderMap.set(entityId, c)
+      if (c instanceof CollisionSensor) {
+        this._collisionSensors.push([entityId, c])
       } else if (c instanceof Body) {
-        // this.bodyMap.set(entityId, c)
         this._bodies.push([entityId, c])
-        // this.colliderMap.set(entityId, c.collider)
       }
     }
 
@@ -158,26 +155,25 @@ export class World extends Container {
   }
 
   removeComponent<T extends Component>(entityId: number, type: SomeComponent<T>): boolean {
-    const cMap = this.componentMap.get(entityId)
-    if (!cMap) {
+    const c2typeMap = this.entityIdToComponentsMap.get(entityId)
+    if (!c2typeMap) {
       console.error('Undefined entity', entityId)
       return false
     }
 
-    const c = cMap.get(type.name)
-    if (c instanceof Collider) {
-      this.colliderMap.delete(entityId)
+    const c = c2typeMap.get(type.name)
+    if (c instanceof CollisionSensor) {
+      this.deleteCollisionSensorEntry(entityId)
     } else if (c instanceof Body) {
-      this.bodyMap.delete(entityId)
-      this.colliderMap.delete(entityId)
+      this.deleteBodyEntry(entityId)
     }
 
-    return cMap.delete(type.name)
+    return c2typeMap.delete(type.name)
   }
 
   getEntityComponents<T extends Component>(type: SomeComponent<T>): EntityComponent<T>[] {
     const ecs: EntityComponent<T>[] = []
-    for (const [eId, cs] of this.componentMap.entries()) {
+    for (const [eId, cs] of this.entityIdToComponentsMap.entries()) {
       const c = cs.get(type.name)
       if (c) {
         ecs.push([eId, c as T])
@@ -188,7 +184,7 @@ export class World extends Container {
 
   getComponents<T extends Component>(type: SomeComponent<T>): T[] {
     const components: T[] = []
-    this.componentMap.forEach((cMap) => {
+    this.entityIdToComponentsMap.forEach((cMap) => {
       if (cMap.has(type.name)) {
         components.push(cMap.get(type.name)! as T)
       }
@@ -199,22 +195,31 @@ export class World extends Container {
   clear() {
     this.tagMap.clear()
     this.taggedIds.clear()
-    this.componentMap.clear()
-    this.colliderMap.clear()
-    this.bodyMap.clear()
+    this.entityIdToComponentsMap.clear()
+
+    this._bodies.length = 0
+    this._collisionSensors.length = 0
 
     this.removeChildren()
-    this.entityMap.clear()
+    this.idToEntityMap.clear()
+  }
+
+  private deleteBodyEntry(entityId: number) {
+    const bodyIndex = this._bodies.findIndex(([id]) => id == entityId)
+    if (bodyIndex >= 0) {
+      this._bodies.splice(bodyIndex, 1)
+    }
+  }
+
+  private deleteCollisionSensorEntry(entityId: number) {
+    const collisionSensorIndex = this._collisionSensors.findIndex(([id]) => id == entityId)
+    if (collisionSensorIndex >= 0) {
+      this._collisionSensors.splice(collisionSensorIndex, 1)
+    }
   }
 }
 
 export namespace World {
-  export interface EntityColliderBody {
-    id: number
-    collider: Collider
-    body: Body
-  }
-
   export enum Layer {
     ENTITIES = 'entities',
     UI = 'ui',

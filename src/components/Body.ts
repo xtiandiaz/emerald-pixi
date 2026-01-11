@@ -15,7 +15,9 @@ export interface BodyOptions {
   angularDrag: number
 }
 
-export class Body extends Component implements BodyOptions {
+export class Body extends Component implements Collider, BodyOptions {
+  readonly collidedIds = new Set<number>()
+
   isStatic: boolean
   isKinematic: boolean
 

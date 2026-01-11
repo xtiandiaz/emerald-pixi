@@ -1,40 +1,20 @@
 import { Point, Transform, type PointData } from 'pixi.js'
-import { Component, Vector, type Range, type VectorData } from '../core'
-import { Geometry, Collision } from '../core'
+import { Vector, type Range, type VectorData } from '.'
+import { Geometry, Collision } from '.'
 
-export class Collider extends Component {
-  layer = 1
-
-  constructor(public readonly shape: Collider.Shape) {
-    super()
-  }
-
-  static circle(x: number, y: number, r: number) {
-    return new Collider(Collider.Shape.circle(x, y, r))
-  }
-  static polygon(vertices: number[]) {
-    return new Collider(Collider.Shape.polygon(vertices))
-  }
-  static rectangle(x: number, y: number, w: number, h: number) {
-    return Collider.polygon([x, y, x + w, y, x + w, y + h, x, y + h])
-  }
-
-  setTransform(transform: Transform) {
-    this.shape.setTransform(transform.position, transform.rotation)
-  }
-
-  findContact(B: Collider) {
-    return this.shape.findContact(B.shape)
-  }
+export interface Collider {
+  readonly shape: Collider.Shape
+  readonly collidedIds: Set<number>
+  layer: number
 }
 
 export namespace Collider {
   export abstract class Shape {
+    abstract readonly area: number
+
     readonly vertices: Point[]
     protected transform = new Transform()
     private shouldUpdateVertices = true
-
-    abstract readonly area: number
 
     get center(): Point {
       return this.transform.position.add(this.centroid)
@@ -87,15 +67,12 @@ export namespace Collider {
       return Collision.isAABBIntersection(this.aabb, B.aabb)
     }
 
-    findContact(
-      B: Collider.Shape,
-      includePoints: boolean = false,
-    ): Collision.ShapeContact | undefined {
+    findContact(B: Collider.Shape, includePoints: boolean = false): Collision.Contact | undefined {
       const A = this
       A.updateVerticesIfNeeded()
       B.updateVerticesIfNeeded()
 
-      let contact: Collision.ShapeContact | undefined
+      let contact: Collision.Contact | undefined
       if (B instanceof Collider.Circle) {
         contact = A.findContactWithCircle(B, includePoints)
       } else if (B instanceof Collider.Polygon) {
@@ -107,14 +84,11 @@ export namespace Collider {
       return contact
     }
 
-    abstract findContactWithCircle(
-      B: Circle,
-      includePoints: boolean,
-    ): Collision.ShapeContact | undefined
+    abstract findContactWithCircle(B: Circle, includePoints: boolean): Collision.Contact | undefined
     abstract findContactWithPolygon(
       B: Polygon,
       includePoints: boolean,
-    ): Collision.ShapeContact | undefined
+    ): Collision.Contact | undefined
 
     abstract getProjectionRange(axis: Vector): Range
 
@@ -156,7 +130,7 @@ export namespace Collider {
       this.area = Math.PI * radius * radius
     }
 
-    findContactWithCircle(B: Circle, includePoints: boolean): Collision.ShapeContact | undefined {
+    findContactWithCircle(B: Circle, includePoints: boolean): Collision.Contact | undefined {
       const radii = this.radius + B.radius
       const diffPos = B.center.subtract(this.center)
       const distSqrd = diffPos.magnitudeSquared()
@@ -165,7 +139,7 @@ export namespace Collider {
       }
       const dist = Math.sqrt(distSqrd)
       const dir = diffPos.divideByScalar(dist)
-      const contact: Collision.ShapeContact = {
+      const contact: Collision.Contact = {
         depth: radii - dist,
         normal: dir,
       }
@@ -175,9 +149,9 @@ export namespace Collider {
       return contact
     }
 
-    findContactWithPolygon(B: Polygon, includePoints: boolean): Collision.ShapeContact | undefined {
+    findContactWithPolygon(B: Polygon, includePoints: boolean): Collision.Contact | undefined {
       const A = this
-      const contact: Collision.ShapeContact = { depth: Infinity, normal: new Vector() }
+      const contact: Collision.Contact = { depth: Infinity, normal: new Vector() }
       if (
         !A.evaluatePolygonProjectionOverlap(B, contact) ||
         !B.evaluateProjectionOverlap(A, contact)
@@ -232,13 +206,13 @@ export namespace Collider {
       this.area = (this.aabb.max.x - this.aabb.min.x) * (this.aabb.max.y - this.aabb.min.y)
     }
 
-    findContactWithCircle(B: Circle, includePoints: boolean): Collision.ShapeContact | undefined {
+    findContactWithCircle(B: Circle, includePoints: boolean): Collision.Contact | undefined {
       return B.findContactWithPolygon(this, includePoints)
     }
 
-    findContactWithPolygon(B: Polygon, includePoints: boolean): Collision.ShapeContact | undefined {
+    findContactWithPolygon(B: Polygon, includePoints: boolean): Collision.Contact | undefined {
       const A = this
-      const contact: Collision.ShapeContact = { depth: Infinity, normal: new Vector() }
+      const contact: Collision.Contact = { depth: Infinity, normal: new Vector() }
       if (!A.evaluateProjectionOverlap(B, contact) || !B.evaluateProjectionOverlap(A, contact)) {
         return
       }
