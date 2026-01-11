@@ -11,6 +11,9 @@ import { Body } from '../components'
 import { Container, RenderLayer } from 'pixi.js'
 
 export class World extends Container {
+  readonly _colliders: EntityComponent<Collider>[] = []
+  readonly _bodies: EntityComponent<Body>[] = []
+
   private nextEntityId = 1
   private tagMap = new Map<number, string>()
   private taggedIds = new Map<string, Set<number>>()
@@ -20,18 +23,11 @@ export class World extends Container {
   private colliderMap = new Map<number, Collider>()
   private bodyMap = new Map<number, Body>()
   private renderLayers = new Map(
-    [World.Layer.ENTITY, World.Layer.UI, World.Layer.DEBUG].map((key) => [key, new RenderLayer()]),
+    [World.Layer.ENTITIES, World.Layer.UI, World.Layer.DEBUG].map((key) => [
+      key,
+      new RenderLayer(),
+    ]),
   )
-
-  get entities(): [id: number, Entity][] {
-    return [...this.entityMap.entries()]
-  }
-  get colliders(): EntityComponent<Collider>[] {
-    return [...this.colliderMap.entries()]
-  }
-  get bodies(): EntityComponent<Body>[] {
-    return [...this.bodyMap.entries()]
-  }
 
   init() {
     this.renderLayers.forEach((rl) => this.addChild(rl))
@@ -59,7 +55,7 @@ export class World extends Container {
 
     entity.init()
 
-    this.getLayer(World.Layer.ENTITY).attach(entity)
+    this.getLayer(World.Layer.ENTITIES).attach(entity)
     this.addChild(entity)
 
     return entity
@@ -152,8 +148,9 @@ export class World extends Container {
       if (c instanceof Collider) {
         this.colliderMap.set(entityId, c)
       } else if (c instanceof Body) {
-        this.bodyMap.set(entityId, c)
-        this.colliderMap.set(entityId, c.collider)
+        // this.bodyMap.set(entityId, c)
+        this._bodies.push([entityId, c])
+        // this.colliderMap.set(entityId, c.collider)
       }
     }
 
@@ -212,8 +209,14 @@ export class World extends Container {
 }
 
 export namespace World {
+  export interface EntityColliderBody {
+    id: number
+    collider: Collider
+    body: Body
+  }
+
   export enum Layer {
-    ENTITY = 'entity',
+    ENTITIES = 'entities',
     UI = 'ui',
     DEBUG = 'debug',
   }

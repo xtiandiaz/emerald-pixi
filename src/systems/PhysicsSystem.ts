@@ -1,7 +1,7 @@
-import { System, World, Vector, type SignalBus } from '../core'
-import { Collision, Physics } from '../'
 import { Graphics } from 'pixi.js'
+import { System, World, Vector, type SignalBus } from '../core'
 import { PhysicsEngine } from '../physics'
+import { Collision, Physics } from '../'
 
 export interface PhysicsSystemOptions {
   gravity: Physics.Gravity
@@ -44,49 +44,45 @@ export class PhysicsSystem extends System {
   fixedUpdate(world: World, signalBus: SignalBus, dT: number): void {
     const gravity = this.options.gravity
     const PPM = this.options.PPM
-    const bodies = world.bodies
+    const bodies = world._bodies
     const separation = new Vector()
-    let contact: Collision.Contact | undefined
+    let collision: Collision.Instance
 
     dT /= this.options.iterations
     for (let it = 0; it < this.options.iterations; it++) {
       this.debug.clear()
 
-      for (const [id, body] of bodies) {
+      for (let i = 0; i < bodies.length; i++) {
+        const [entityId, body] = bodies[i]!
+
         this.engine.stepBody(body, gravity, PPM, dT)
 
-        const entity = world.getEntity(id)!
+        const entity = world.getEntity(entityId)!
         entity.position.copyFrom(body.position)
         entity.rotation = body.rotation
       }
 
-      const bodyPairs = Collision.findAABBIntersectionPairsForBodies(bodies, (lA, lB) =>
+      const collisions = Collision.findInstances(bodies, (lA, lB) =>
         Collision.canCollide(lA, lB, this.options.collisionLayerMap),
       )
 
-      for (const [[idA, bodyA], [idB, bodyB]] of bodyPairs) {
-        contact = bodyA.collider.findContact(bodyB.collider, true)
-        if (!contact) {
-          continue
-        }
-        this.drawContact(contact)
+      for (let i = 0; i < collisions.length; i++) {
+        collision = collisions[i]!
+
+        this.drawCollision(collision)
 
         this.engine.separateBodies(
-          bodyA,
-          bodyB,
-          contact.normal.multiplyScalar(
-            contact.depth,
-            // (contact.depth * (it + 1)) / this.options.iterations,
-            separation,
-          ),
+          collision.A,
+          collision.B,
+          collision.normal.multiplyScalar(collision.depth, separation),
         )
 
-        this.engine.resolveCollision(bodyA, bodyB, contact)
+        this.engine.resolveCollision(collision)
       }
     }
   }
 
-  private drawContact(contact: Collision.Contact) {
+  private drawCollision(contact: Collision.ShapeContact) {
     for (const point of contact.points!) {
       this.debug.circle(point.x, point.y, 5).stroke({ color: 0xffffff, width: 2 })
     }

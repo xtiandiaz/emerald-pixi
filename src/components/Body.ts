@@ -68,7 +68,7 @@ export class Body extends Component implements BodyOptions {
   readonly invInertia: number
 
   constructor(
-    public readonly collider: Collider,
+    public readonly shape: Collider.Shape,
     options?: Partial<BodyOptions>,
   ) {
     super()
@@ -77,9 +77,9 @@ export class Body extends Component implements BodyOptions {
     this.isKinematic = options?.isKinematic ?? false
     this.layer = options?.layer ?? 1
 
-    this.mass = this.isStatic ? 0 : Physics.calculateMass(collider.area, 1)
+    this.mass = this.isStatic ? 0 : Physics.calculateMass(shape.area, 1)
     this.invMass = this.mass > 0 ? 1 / this.mass : 0
-    this.inertia = this.isStatic ? 0 : Physics.calculateColliderInertia(collider, this.mass)
+    this.inertia = this.isStatic ? 0 : Physics.calculateColliderShapeInertia(shape, this.mass)
     this.invInertia = this.inertia > 0 ? 1 / this.inertia : 0
 
     this.restitution = options?.restitution ?? this._restitution
@@ -88,8 +88,7 @@ export class Body extends Component implements BodyOptions {
 
     this.transform = new Transform({
       observer: {
-        _onUpdate: (transform) =>
-          this.collider.setTransform(transform.position, transform.rotation),
+        _onUpdate: (transform) => this.shape.setTransform(transform.position, transform.rotation),
       },
     })
     this.transform.position.set(options?.position?.x, options?.position?.y)

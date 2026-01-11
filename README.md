@@ -11,6 +11,7 @@ A simple game engine rendered with [PixiJS](https://github.com/pixijs/pixijs/) a
 
 ### Physics
 
+- Optimize the finding of contact points
 - Calculate mass and inertia for polygons of any number of vertices
 - Enable tagless collider sensor and use to detect gone bodies to remove
 

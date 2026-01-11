@@ -2,7 +2,6 @@ import { Point, type PointData } from 'pixi.js'
 import {
   isNearlyEqual,
   type EntityComponent,
-  type PolygonCollider,
   type Range,
   type Vector,
   type VectorData,
@@ -11,6 +10,8 @@ import { Collider, Body } from '../components'
 import { Geometry } from './Geometry'
 
 export namespace Collision {
+  export type LayerMap = Map<number, number>
+
   export type AABB = {
     min: PointData
     max: PointData
@@ -34,11 +35,14 @@ export namespace Collision {
     validCount: 1 | 2
   }
 
-  export interface Contact extends ProjectionOverlap {
+  export interface ShapeContact extends ProjectionOverlap {
     points?: Point[]
   }
 
-  export type LayerMap = Map<number, number>
+  export interface Instance extends ShapeContact {
+    A: Body
+    B: Body
+  }
 
   export function isAABBIntersection(a: AABB, b: AABB): boolean {
     return !(a.max.x < b.min.x || a.max.y < b.min.y || b.max.x < a.min.x || b.max.y < a.min.y)
@@ -137,6 +141,29 @@ export namespace Collision {
     return true
   }
 
+  export function findInstances(
+    bodies: EntityBody[],
+    canCollide: (layerA: number, layerB: number) => boolean,
+  ): Instance[] {
+    const instances: Instance[] = []
+    let A: Body, B: Body
+
+    for (let i = 0; i < bodies.length - 1; i++) {
+      A = bodies[i]![1]
+      for (let j = i + 1; j < bodies.length; j++) {
+        B = bodies[j]![1]
+        if (!canCollide(A.layer, B.layer) || !A.shape.hasAABBIntersection(B.shape)) {
+          continue
+        }
+        const shapeContact = A.shape.findContact(B.shape, true)
+        if (shapeContact) {
+          instances.push({ A, B, ...shapeContact })
+        }
+      }
+    }
+    return instances
+  }
+
   export function findContactPoints(verticesA: Point[], verticesB: Point[]): Point[] {
     const tracking: ContactPointTracking = {
       cp1: new Point(),
@@ -153,32 +180,14 @@ export namespace Collision {
     return tracking.validCount == 2 ? [tracking.cp1, tracking.cp2!] : [tracking.cp1]
   }
 
-  export function correctContactDirectionIfNeeded(A: Collider, B: Collider, ref_contact: Contact) {
+  export function correctContactDirectionIfNeeded(
+    A: Collider.Shape,
+    B: Collider.Shape,
+    ref_contact: ShapeContact,
+  ) {
     if (B.center.subtract(A.center).dot(ref_contact.normal) < 0) {
       ref_contact.normal.multiplyScalar(-1, ref_contact.normal)
     }
-  }
-
-  export function findAABBIntersectionPairsForBodies(
-    eBodies: EntityBody[],
-    canCollide: (idA: number, layerA: number, idB: number, layerB: number) => boolean,
-  ): AABBIntersectionBodyPair[] {
-    const pairs: AABBIntersectionBodyPair[] = []
-    let eA!: EntityBody, eB!: EntityBody
-
-    for (let i = 0; i < eBodies.length - 1; i++) {
-      eA = eBodies[i]!
-      for (let j = i + 1; j < eBodies.length; j++) {
-        eB = eBodies[j]!
-        if (
-          canCollide(eA[0], eA[1].layer, eB[0], eB[1].layer) &&
-          eA[1].collider.hasAABBIntersection(eB[1].collider)
-        ) {
-          pairs.push([eA, eB])
-        }
-      }
-    }
-    return pairs
   }
 
   export function findAABBIntersectionPairs(
@@ -194,7 +203,7 @@ export namespace Collision {
         eB = eColliders[j]!
         if (
           canCollide(eA[0], eA[1].layer, eB[0], eB[1].layer) &&
-          eA[1].hasAABBIntersection(eB[1])
+          eA[1].shape.hasAABBIntersection(eB[1].shape)
         ) {
           pairs.push([eA, eB])
         }

@@ -62,21 +62,23 @@ export class PhysicsEngine {
   /*  
     Collision Response: https://en.wikipedia.org/wiki/Collision_response#Impulse-based_reaction_model
   */
-  resolveCollision(A: Body, B: Body, contact: Collision.Contact) {
-    if (!contact.points) {
+  resolveCollision(collision: Collision.Instance) {
+    if (!collision.points) {
       return
     }
 
+    const A = collision.A
+    const B = collision.B
     const zeroVector = new Vector()
-    const pointCount = contact.points.length
+    const pointCount = collision.points.length
     const coeffs = PhysicsEngine.getResolutionCoefficients(A, B)
     const sumInvMasses = A.invMass + B.invMass
-    const N = contact.normal
+    const N = collision.normal
 
     this.clearImpulses()
 
     for (let i = 0; i < pointCount; i++) {
-      this.resetRotationRadii(A, B, contact.points[i]!, i)
+      this.resetRotationRadii(A, B, collision.points[i]!, i)
 
       this.resetRelativeVelocity(A, B, i)
       const vrDotN = this.vrs[i]!.dot(N)
@@ -97,7 +99,7 @@ export class PhysicsEngine {
     }
 
     for (let i = 0; i < pointCount; i++) {
-      this.resetRotationRadii(A, B, contact.points[i]!, i)
+      this.resetRotationRadii(A, B, collision.points[i]!, i)
 
       this.resetRelativeVelocity(A, B, i)
       const vr = this.vrs[i]!
