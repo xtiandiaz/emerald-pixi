@@ -2,19 +2,19 @@ import type { Container, ContainerChild, ContainerEvents, EventEmitter } from 'p
 import type { Disconnectable } from '../core'
 
 export function connectDocumentEvent<K extends keyof DocumentEventMap>(
-  key: K,
+  eventType: K,
   connector: (e: DocumentEventMap[K]) => void,
 ): Disconnectable {
-  document.addEventListener(key, connector)
+  document.addEventListener(eventType, connector)
 
   return {
-    disconnect: () => document.removeEventListener(key, connector),
+    disconnect: () => document.removeEventListener(eventType, connector),
   }
 }
 
 type AnyEvent = { [K: ({} & string) | ({} & symbol)]: any }
 export function connectContainerEvent<K extends keyof ContainerEvents<ContainerChild>>(
-  key: K,
+  eventType: K,
   target: Container,
   connector: (
     ...args: EventEmitter.ArgumentMap<ContainerEvents<ContainerChild> & AnyEvent>[Extract<
@@ -23,9 +23,9 @@ export function connectContainerEvent<K extends keyof ContainerEvents<ContainerC
     >]
   ) => void,
 ): Disconnectable {
-  target.on(key, connector)
+  target.on(eventType, connector)
 
   return {
-    disconnect: () => target.off(key, connector),
+    disconnect: () => target.off(eventType, connector),
   }
 }

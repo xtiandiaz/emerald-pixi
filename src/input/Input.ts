@@ -1,31 +1,56 @@
+import {
+  Container,
+  EventEmitter,
+  FederatedPointerEvent,
+  type ContainerChild,
+  type ContainerEvents,
+  type FederatedEventMap,
+} from 'pixi.js'
 import type { Disconnectable } from '../core'
 
 export namespace Input {
+  export type KeyboardEventType = Extract<keyof DocumentEventMap, 'keydown'>
+  export type PointerEventType = Extract<
+    keyof FederatedEventMap,
+    'pointerdown' | 'pointerup' | 'pointerupoutside' | 'pointermove'
+  >
+
+  export enum Source {
+    KEYBOARD,
+    POINTER,
+  }
+
   export interface Control {
-    kind: Control.Kind
+    source: Source
   }
+  export interface KeyboardControl extends Control {
+    keyCodes: string[]
+    eventType: KeyboardEventType
+  }
+  export interface PointerControl extends Control {
+    eventType: keyof FederatedEventMap
+  }
+
   export namespace Control {
-    export enum Kind {
-      KEY,
-      POINTER,
-    }
-    export type KeyOrButtonState = 'pressed' | 'released'
+    export const keyboard = (
+      // eventType: KeyboardEventType,
+      ...keyCodes: string[]
+    ): KeyboardControl => ({ source: Source.KEYBOARD, eventType: 'keydown', keyCodes })
 
-    export interface Key extends Control {
-      code: string
-      state: Control.KeyOrButtonState
+    export const pointer = (eventType: PointerEventType): PointerControl => {
+      return { source: Source.POINTER, eventType }
     }
-
-    export const key = (code: string, state: KeyOrButtonState): Key => ({
-      kind: Kind.KEY,
-      code,
-      state,
-    })
   }
 
-  export interface Action {
-    key: string
+  export interface Signal {
+    source: Source
+    action: string
+  }
+  export interface KeyboardSignal extends Signal {
     event: KeyboardEvent
+  }
+  export interface PointerSignal extends Signal {
+    event: FederatedPointerEvent
   }
 
   export function connectDocumentEvent<K extends keyof DocumentEventMap>(
@@ -36,6 +61,24 @@ export namespace Input {
 
     return {
       disconnect: () => document.removeEventListener(key, connector),
+    }
+  }
+
+  type AnyEvent = { [K: ({} & string) | ({} & symbol)]: any }
+  export function connectContainerEvent<K extends keyof ContainerEvents<ContainerChild>>(
+    key: K,
+    target: Container,
+    connector: (
+      ...args: EventEmitter.ArgumentMap<ContainerEvents<ContainerChild> & AnyEvent>[Extract<
+        K,
+        keyof ContainerEvents<ContainerChild> | keyof AnyEvent
+      >]
+    ) => void,
+  ): Disconnectable {
+    target.on(key, connector)
+
+    return {
+      disconnect: () => target.off(key, connector),
     }
   }
 }

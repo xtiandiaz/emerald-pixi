@@ -1,12 +1,14 @@
-import { Assets } from 'pixi.js'
-import { World, System, type Disconnectable, type SignalBus } from './'
+import { Assets, Rectangle } from 'pixi.js'
+import { World, System, Screen, type Disconnectable, type SignalBus } from './'
 import { Input, InputController } from '../input'
+import { ScreenResized } from '../signals'
 
 export abstract class Scene {
   abstract readonly systems: System[]
   abstract readonly inputMap: Record<string, Input.Control>
+  protected input = new InputController<keyof typeof this.inputMap>()
   protected connections: Disconnectable[] = []
-  protected input!: InputController<keyof typeof this.inputMap>
+  private hitArea = new Rectangle(0, 0, Screen.width, Screen.height)
 
   constructor(public readonly name: string) {}
 
@@ -21,8 +23,11 @@ export abstract class Scene {
 
     this.systems.forEach((s) => s.init?.(world, signalBus))
 
-    this.input = new InputController(this.inputMap, (action) => this.onInput?.(action))
-    this.input.init()
+    world.interactive = true
+    world.hitArea = this.hitArea
+    this.input.init(this.inputMap, world, (signal) => this.onInput?.(signal, world))
+
+    this.connections.push(signalBus.connect(ScreenResized, (_) => this.onScreenResized()))
   }
 
   deinit(): void {
@@ -34,5 +39,12 @@ export abstract class Scene {
     this.systems.forEach((s) => s.deinit?.())
   }
 
-  onInput?(action: Input.Action): void
+  protected onScreenResized() {
+    this.hitArea.width = Screen.width
+    this.hitArea.height = Screen.height
+  }
+
+  protected onInput(signal: Input.Signal, world: World): void {
+    this.systems.forEach((s) => s.input?.(signal, world))
+  }
 }

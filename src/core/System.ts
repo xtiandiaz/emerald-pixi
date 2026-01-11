@@ -14,5 +14,5 @@ export class System {
   fixedUpdate?(world: World, signalBus: SignalBus, dT: number): void
   update?(world: World, signalBus: SignalBus, dT: number): void
 
-  input?(action: Input.Action): void
+  input?(signal: Input.Signal, world: World): void
 }

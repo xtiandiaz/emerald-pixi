@@ -16,11 +16,6 @@ A simple game engine rendered with [PixiJS](https://github.com/pixijs/pixijs/) a
 
 ### Input
 
-- Create an action-control map interface
-- Add Input Signal
-- Emit signals on corresponding input
-- Add onInput optional method in Systems for them to handle
-
 ### Camera
 
 - Add interface to zoom and pan on world by means of a 'camera' object
